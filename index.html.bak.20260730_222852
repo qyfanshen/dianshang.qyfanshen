@@ -2,17 +2,6 @@
 <html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="UTF-8">
-  <meta name="description" content="跨境电商运营台 · 订单/商品/库存/发货/利润 - 清远凡神人工智能旗下专业平台">
-  <meta name="keywords" content="清远凡神,人工智能,跨境电商运营台 · 订单/商品/库存/发货/利润">
-  <meta name="author" content="清远凡神人工智能">
-  <link rel="canonical" href="https://dianshang.qyfanshen.com/">
-  <meta property="og:title" content="跨境电商运营台 · 订单/商品/库存/发货/利润">
-  <meta property="og:description" content="跨境电商运营台 · 订单/商品/库存/发货/利润 - 清远凡神人工智能旗下专业平台">
-  <meta property="og:url" content="https://dianshang.qyfanshen.com/">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="清远凡神人工智能">
-  <meta name="twitter:card" content="summary">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>跨境电商运营台 · 订单/商品/库存/发货/利润</title>
 <!-- 异步加载非关键库,避免阻塞首屏 -->
@@ -331,15 +320,6 @@ body[data-role="manage"] .staff-only{display:none!important}
   .label-sheet .barcode{margin-top:4mm;font-family:monospace;font-size:14pt;letter-spacing:3px;text-align:center;border:1px dashed #000;padding:3mm}
 }
 </style>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "清远凡神人工智能",
-    "url": "https://dianshang.qyfanshen.com/",
-    "description": "跨境电商运营台 · 订单/商品/库存/发货/利润 - 清远凡神人工智能旗下专业平台"
-  }
-  </script>
 </head>
 <body data-view="portal">
 
