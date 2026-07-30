@@ -1,0 +1,2203 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>跨境电商运营台 · 订单/商品/库存/发货/利润</title>
+<!-- 异步加载非关键库,避免阻塞首屏 -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js" async></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" async></script>
+<style>
+:root{
+  --primary:#165DFF; --primary-light:#E8F0FF; --success:#00B42A; --warning:#FF7D00; --danger:#F53F3F;
+  --bg:#F4F6FA; --card:#FFFFFF; --text:#1D2129; --muted:#86909C; --border:#E5E8EF;
+  --hover:#F2F6FF; --zebra:#FAFBFD; --shadow:0 2px 8px rgba(29,33,41,.06);
+}
+[data-theme="dark"]{
+  --primary:#3C7EFF; --primary-light:#1B2A4A; --success:#27C346; --warning:#FF9A2E; --danger:#F76560;
+  --bg:#17171A; --card:#232324; --text:#EAEDF1; --muted:#8A8F99; --border:#333335;
+  --hover:#2A3550; --zebra:#28282A; --shadow:0 2px 8px rgba(0,0,0,.35);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:Inter,"Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;contain:layout style paint}
+/* 页面切换优化:使用 opacity 和 visibility 代替 display */
+.page{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .2s ease;will-change:opacity}
+.page.show{position:static;opacity:1;visibility:visible}
+/* 内容可见性优化 */
+.card{content-visibility:auto;contain-intrinsic-size:0 200px}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;outline:none}
+input:focus,select:focus{border-color:var(--primary)}
+/* ===== 布局 ===== */
+.app{display:flex;min-height:100vh}
+.sidebar{width:216px;background:var(--card);border-right:1px solid var(--border);position:fixed;top:0;bottom:0;left:0;display:flex;flex-direction:column;z-index:20}
+.logo{display:flex;align-items:center;gap:10px;padding:18px 20px;border-bottom:1px solid var(--border)}
+.logo .ic{width:34px;height:34px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
+.logo b{font-size:15px}
+.logo small{display:block;color:var(--muted);font-size:11px;font-weight:400}
+.nav{flex:1;padding:12px 10px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:8px;color:var(--text);margin-bottom:4px;user-select:none;cursor:pointer;font-size:14px}
+.nav-item:hover{background:var(--hover)}
+.nav-item.active{background:var(--primary);color:#fff;font-weight:600}
+.nav-item .em{width:20px;text-align:center}
+.side-foot{padding:14px 16px;border-top:1px solid var(--border);color:var(--muted);font-size:12px}
+.main{flex:1;margin-left:216px;padding:0 24px 40px;overflow-y:auto;height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 0 14px;position:sticky;top:0;background:var(--bg);z-index:10}
+.topbar h1{font-size:19px}
+.topbar .right{display:flex;align-items:center;gap:10px}
+.date-chip{color:var(--muted);font-size:13px}
+/* ===== 通用组件 ===== */
+.btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:7px 14px;border-radius:6px;font-size:13px;transition:.15s}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{opacity:.88;color:#fff}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.sm{padding:4px 10px;font-size:12px;border-radius:5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:18px}
+.card h3{font-size:15px;margin-bottom:14px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.grid-main{display:grid;grid-template-columns:230px 1fr 1fr;gap:16px;margin-top:16px}
+/* 统计卡片 */
+.stat{position:relative;overflow:hidden}
+.stat .lb{color:var(--muted);font-size:13px}
+.stat .val{font-size:28px;font-weight:700;margin-top:8px}
+.stat .sub{color:var(--muted);font-size:12px;margin-top:6px}
+.stat .corner{position:absolute;right:14px;top:14px;width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--primary-light)}
+/* 快捷入口 */
+.quick a{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;cursor:pointer;text-decoration:none;color:var(--text);transition:.15s}
+.quick a:hover{border-color:var(--primary);color:var(--primary);background:var(--hover)}
+.quick .badge{margin-left:auto}
+/* 表格 */
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:8px;max-height:640px}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+thead th{background:var(--zebra);color:var(--muted);font-weight:600;text-align:left;padding:11px 12px;position:sticky;top:0;z-index:5;border-bottom:1px solid var(--border)}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border)}
+tbody tr:nth-child(even):not(.detail-row){background:var(--zebra)}
+tbody tr:not(.detail-row):hover{background:var(--hover)}
+tbody tr:last-child td{border-bottom:none}
+.detail-row td{background:var(--primary-light);padding:12px 16px}
+.detail-row table{font-size:12px}
+.detail-row thead th{background:transparent;position:static}
+/* 商品图片 */
+.thumb{width:44px;height:44px;border-radius:6px;object-fit:cover;border:1px solid var(--border);background:var(--zebra);display:block}
+.thumb.placeholder{color:var(--muted);font-size:11px;display:flex;align-items:center;justify-content:center;letter-spacing:-1px}
+.up-area{width:120px;height:120px;border:1.5px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:12px;background:var(--zebra);transition:.15s;overflow:hidden;position:relative}
+.up-area:hover{border-color:var(--primary);color:var(--primary);background:var(--hover)}
+.up-area img{width:100%;height:100%;object-fit:cover}
+.up-area .x{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;line-height:20px;font-size:12px;cursor:pointer;display:none;padding:0}
+.up-area.has-img .x{display:block}
+.up-area .ph{font-size:30px;line-height:1;margin-bottom:6px}
+/* 大图预览 */
+.zoom-mask{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:300;cursor:zoom-out}
+.zoom-mask.show{display:flex}
+.zoom-mask img{max-width:92vw;max-height:92vh;cursor:grab;user-select:none;transition:transform .12s ease;transform-origin:center center;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.zoom-mask img.dragging{cursor:grabbing;transition:none}
+.zoom-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:8px;background:rgba(0,0,0,.6);padding:8px 14px;border-radius:30px;z-index:301;backdrop-filter:blur(8px)}
+.zoom-bar button{background:rgba(255,255,255,.12);color:#fff;border:none;width:36px;height:36px;border-radius:50%;font-size:16px;cursor:pointer}
+.zoom-bar button:hover{background:rgba(255,255,255,.22)}
+.zoom-bar .zi{color:#fff;font-size:12px;align-self:center;min-width:42px;text-align:center}
+/* 用户菜单 */
+.avatar-btn{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;border-radius:20px;background:var(--card);border:1px solid var(--border);font-size:13px;color:var(--text)}
+.avatar-btn:hover{border-color:var(--primary);color:var(--primary)}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#722ED1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px}
+.user-menu{position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);min-width:200px;z-index:50;overflow:hidden;display:none}
+.user-menu.show{display:block}
+.user-menu .head{padding:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.user-menu .head .avatar{width:36px;height:36px;font-size:14px}
+.user-menu .head b{font-size:13px;display:block}
+.user-menu .head small{color:var(--muted);font-size:11px}
+.user-menu a,.user-menu .mi{padding:10px 14px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;border:none;background:none;width:100%;text-align:left}
+.user-menu a:hover,.user-menu .mi:hover{background:var(--hover)}
+.user-menu .danger{color:var(--danger)}
+.user-menu .danger:hover{background:rgba(245,63,63,.08);color:var(--danger)}
+.user-area{position:relative}
+/* 状态标签 */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;line-height:1.4}
+.b-blue{background:var(--primary-light);color:var(--primary)}
+.b-green{background:rgba(0,180,42,.12);color:var(--success)}
+.b-orange{background:rgba(255,125,0,.12);color:var(--warning)}
+.b-red{background:rgba(245,63,63,.12);color:var(--danger)}
+.b-gray{background:rgba(134,144,156,.14);color:var(--muted)}
+/* 筛选 tab */
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px}
+.tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar .spacer{flex:1}
+.search-box{min-width:280px}
+/* 图表 */
+.chart{height:280px;width:100%}
+.chart-empty{height:280px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+/* 弹窗 */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:100}
+.mask.show{display:flex}
+.modal{background:var(--card);border-radius:12px;width:520px;max-width:94vw;max-height:88vh;overflow:auto;padding:22px}
+.modal h3{font-size:16px;margin-bottom:16px}
+.form-row{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:10px;margin-bottom:12px}
+.form-row label{color:var(--muted);font-size:13px;text-align:right}
+.form-row input,.form-row select{width:100%}
+.modal .foot{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+/* 页面切换动画 */
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.mt16{margin-top:16px}
+.muted{color:var(--muted)}
+.red{color:var(--danger);font-weight:600}
+.green{color:var(--success);font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+/* toast */
+#toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:9px 20px;border-radius:8px;font-size:13px;z-index:200;display:none;box-shadow:var(--shadow)}
+/* ========== 门户首页 (Portal - 医药商会风格) ========== */
+.portal-view{display:none;overflow-y:auto;max-height:100vh;background:#ffffff;color:#1f2937}
+body[data-view="portal"] .app{display:none!important}
+body[data-view="portal"] .portal-view{display:block}
+body[data-view="console"] .portal-view{display:none!important}
+body[data-view="portal"]{overflow-y:auto}
+
+.portal-*{font-family:Inter,"Microsoft YaHei",system-ui,sans-serif;box-sizing:border-box}
+
+/* 导航栏 */
+.portal-navbar{position:fixed;top:0;left:0;right:0;height:64px;background:rgba(255,255,255,.95);backdrop-filter:blur(12px);border-bottom:1px solid #e5e7eb;z-index:1000;display:flex;align-items:center;padding:0 48px}
+.portal-nav-container{max-width:1400px;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:space-between}
+.portal-logo{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:700;color:#111827}
+.portal-logo-icon{font-size:24px;background:linear-gradient(135deg,#0F766E,#14B8A6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.portal-nav-menus{display:flex;align-items:center;gap:32px}
+.portal-nav-menus button{background:none;border:none;color:#4b5563;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;padding:0;transition:color .2s}
+.portal-nav-menus button:hover,.portal-nav-menus button.active{color:#0F766E}
+.portal-nav-actions{display:flex;gap:12px}
+.portal-nav-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none;border:none;font-family:inherit}
+.portal-nav-btn.primary{background:linear-gradient(135deg,#0F766E,#14B8A6);color:#fff;box-shadow:0 4px 14px rgba(15,118,110,.18)}
+.portal-nav-btn.primary:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(15,118,110,.28)}
+.portal-nav-btn.outline{background:#fff;border:1.5px solid #d1d5db;color:#374151}
+.portal-nav-btn.outline:hover{border-color:#0F766E;color:#0F766E;background:#f0fdfc}
+
+/* Hero */
+.portal-hero{min-height:100vh;background:#ffffff;position:relative;overflow:hidden;padding-top:64px}
+.portal-hero-grid-bg{position:absolute;top:0;left:0;right:0;bottom:0;background-image:linear-gradient(rgba(20,184,166,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(20,184,166,.04) 1px,transparent 1px);background-size:60px 60px}
+.portal-hero-glow{position:absolute;border-radius:50%;filter:blur(100px);opacity:.18}
+.portal-hero-glow-1{width:500px;height:500px;background:#14B8A6;top:-120px;right:10%}
+.portal-hero-glow-2{width:360px;height:360px;background:#e0f2fe;bottom:-80px;left:5%}
+.portal-hero-top{position:relative;z-index:2;text-align:center;padding:100px 32px 50px}
+.portal-hero-status{display:inline-flex;align-items:center;gap:12px;padding:8px 20px;background:#f0fdfc;border:1px solid #ccfbf1;border-radius:20px;font-size:13px;margin-bottom:24px}
+.portal-status-dot{width:8px;height:8px;background:#14B8A6;border-radius:50%;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.portal-status-time{color:#0F766E;font-weight:600;font-variant-numeric:tabular-nums}
+.portal-hero-title{font-size:48px;font-weight:800;margin-bottom:16px;color:#111827;letter-spacing:-1px}
+.portal-hero-subtitle{font-size:18px;color:#6b7280;letter-spacing:2px}
+
+/* KPI 横向滚动 */
+.portal-scroll-wrap{position:relative;z-index:2;margin:48px 0;overflow:hidden}
+.portal-scroll-track{display:flex;gap:16px;animation:scrollKPI 40s linear infinite;width:max-content;padding:0 32px}
+@keyframes scrollKPI{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.portal-scroll-track:hover{animation-play-state:paused}
+.portal-kpi{flex-shrink:0;width:240px;padding:24px;border-radius:12px;position:relative;overflow:hidden;transition:all .3s;background:#fff;border:1px solid #e5e7eb;box-shadow:0 4px 20px rgba(0,0,0,.04)}
+.portal-kpi:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(0,0,0,.08)}
+.portal-kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;opacity:.8;transition:opacity .3s}
+.portal-kpi-c::before{background:linear-gradient(90deg,#14B8A6,#0F766E)}
+.portal-kpi-b::before{background:linear-gradient(90deg,#3b82f6,#1d4ed8)}
+.portal-kpi-p::before{background:linear-gradient(90deg,#8b5cf6,#6d28d9)}
+.portal-kpi-g::before{background:linear-gradient(90deg,#10b981,#047857)}
+.portal-kpi-o::before{background:linear-gradient(90deg,#f97316,#ea580c)}
+.portal-kpi-a::before{background:linear-gradient(90deg,#f59e0b,#d97706)}
+.portal-kpi-r::before{background:linear-gradient(90deg,#ef4444,#dc2626)}
+.portal-kpi-t::before{background:linear-gradient(90deg,#06b6d4,#0891b2)}
+.portal-kpi-h{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.portal-kpi-icon{width:20px;height:20px;opacity:.9}
+.portal-kpi-lbl{font-size:13px;color:#6b7280;font-weight:500}
+.portal-kpi-val{font-size:32px;font-weight:800;margin-bottom:6px;display:flex;align-items:baseline;gap:4px;color:#111827}
+.portal-kpi-unit{font-size:16px;font-weight:500;color:#9ca3af}
+.portal-kpi-trend{font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.portal-kpi-trend.up{color:#059669}
+.portal-kpi-trend.down{color:#dc2626}
+.portal-kpi-mini{position:absolute;bottom:0;left:0;right:0;height:30px;opacity:.06}
+
+/* CTA + 跑马灯 */
+.portal-hero-bottom{position:relative;z-index:2;padding:50px 32px 80px;text-align:center}
+.portal-cta{display:flex;gap:16px;justify-content:center;margin-bottom:48px}
+.portal-cta-btn{padding:14px 32px;font-size:16px;border-radius:10px;font-weight:600;cursor:pointer;transition:all .2s;border:none;font-family:inherit}
+.portal-cta-btn.primary{background:linear-gradient(135deg,#0F766E,#14B8A6);color:#fff;box-shadow:0 4px 16px rgba(15,118,110,.2)}
+.portal-cta-btn.primary:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(15,118,110,.3)}
+.portal-cta-btn.outline{background:#fff;border:1.5px solid #d1d5db;color:#374151}
+.portal-cta-btn.outline:hover{border-color:#0F766E;color:#0F766E;background:#f0fdfc}
+.portal-stream{max-width:1400px;margin:0 auto;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:14px 20px;display:flex;align-items:center;gap:16px}
+.portal-stream-label{font-size:13px;color:#0F766E;font-weight:600;white-space:nowrap}
+.portal-stream-wrap{flex:1;overflow:hidden}
+.portal-stream-track{display:flex;gap:32px;animation:scrollStream 30s linear infinite}
+@keyframes scrollStream{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.portal-stream-item{white-space:nowrap;font-size:13px;color:#4b5563;display:flex;align-items:center;gap:8px}
+.portal-stream-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.portal-dot-green{background:#10b981}
+.portal-dot-blue{background:#3b82f6}
+.portal-dot-cyan{background:#14B8A6}
+.portal-dot-purple{background:#8b5cf6}
+.portal-dot-orange{background:#ea580c}
+
+/* 控制台视图右上角返回按钮 */
+.console-return-btn{display:none}
+body[data-view="console"] .console-return-btn{display:inline-flex}
+
+/* ===== 角色标识 ===== */
+.role-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;margin-left:8px}
+body[data-role="manage"] .role-badge{background:var(--primary-light);color:var(--primary)}
+body[data-role="staff"] .role-badge{background:#FFF7E8;color:#FF7D00}
+.role-switch-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:8px;border-radius:6px;border:1px dashed var(--border);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;transition:.15s;margin-bottom:8px}
+.role-switch-btn:hover{border-color:var(--primary);color:var(--primary)}
+body[data-role="manage"] .nav-item[data-staff-only]{display:none}
+body[data-role="staff"] .nav-item[data-manage-only]{display:none}
+body[data-role="staff"] .manage-only{display:none!important}
+body[data-role="manage"] .staff-only{display:none!important}
+
+/* ========== 门户内容板块 ========== */
+.portal-container{max-width:1200px;margin:0 auto}
+.portal-section-header{text-align:center;margin-bottom:60px}
+.portal-section-header h2{font-size:36px;font-weight:800;margin-bottom:12px;color:#111827}
+.portal-section-header p{font-size:16px;color:#6b7280}
+
+/* 行业痛点 */
+.portal-problems{padding:100px 32px;background:#f8fafc}
+.portal-problems-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px}
+.portal-problem-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:32px 24px;text-align:center;transition:all .3s;box-shadow:0 2px 12px rgba(0,0,0,.03)}
+.portal-problem-card:hover{border-color:#14B8A6;transform:translateY(-4px);box-shadow:0 12px 28px rgba(0,0,0,.06)}
+.portal-problem-icon{width:56px;height:56px;margin:0 auto 20px;background:linear-gradient(135deg,#f0fdfc,#e0f2fe);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;color:#0F766E}
+.portal-problem-card h3{font-size:18px;font-weight:700;margin-bottom:10px;color:#111827}
+.portal-problem-card p{font-size:14px;color:#6b7280;line-height:1.6}
+
+/* 核心功能 */
+.portal-features{padding:100px 32px;background:#fff}
+.portal-features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.portal-feature-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:28px;transition:all .3s;box-shadow:0 2px 12px rgba(0,0,0,.03)}
+.portal-feature-card:hover{border-color:#14B8A6;transform:translateY(-4px);box-shadow:0 12px 28px rgba(0,0,0,.06)}
+.portal-feature-card-featured{background:linear-gradient(135deg,#f0fdfc,#fff);border-color:#ccfbf1}
+.portal-feature-icon{width:48px;height:48px;background:linear-gradient(135deg,#0F766E,#14B8A6);border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 4px 12px rgba(15,118,110,.18)}
+.portal-feature-card h3{font-size:17px;font-weight:700;margin-bottom:12px;color:#111827}
+.portal-feature-card ul{list-style:none}
+.portal-feature-card li{font-size:13px;color:#6b7280;padding:6px 0;padding-left:16px;position:relative}
+.portal-feature-card li::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:4px;height:4px;background:#14B8A6;border-radius:50%}
+
+/* 建设目标 */
+.portal-goals{padding:100px 32px;background:#f8fafc}
+.portal-goals-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.portal-goal-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:28px;position:relative;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.03)}
+.portal-goal-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,#0F766E,#14B8A6)}
+.portal-goal-card:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(0,0,0,.06)}
+.portal-goal-number{font-size:56px;font-weight:900;color:#f3f4f6;position:absolute;top:8px;right:16px}
+.portal-goal-card h3{font-size:17px;font-weight:700;margin-bottom:10px;color:#111827}
+.portal-goal-card p{font-size:13px;color:#6b7280;line-height:1.6}
+
+/* 系统架构 */
+.portal-arch{padding:100px 32px;background:#fff}
+.portal-arch-diagram{display:flex;flex-direction:column;gap:12px}
+.portal-arch-layer{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:20px 24px;transition:all .2s}
+.portal-arch-layer:hover{border-color:#14B8A6;background:#f0fdfc}
+.portal-arch-title{font-size:13px;font-weight:600;color:#0F766E;margin-bottom:12px}
+.portal-arch-items{display:flex;flex-wrap:wrap;gap:10px}
+.portal-arch-item{background:#fff;border:1px solid #e5e7eb;padding:6px 14px;border-radius:6px;font-size:13px;color:#374151}
+
+/* 响应式 */
+@media(max-width:900px){
+  .portal-nav-menus{display:none}
+  .portal-hero-title{font-size:32px}
+  .portal-features-grid{grid-template-columns:1fr}
+  .portal-goals-grid{grid-template-columns:1fr 1fr}
+  .portal-problems-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .portal-goals-grid{grid-template-columns:1fr}
+  .portal-problems-grid{grid-template-columns:1fr}
+}
+
+/* 打印面单 */
+#printArea{display:none}
+@media print{
+  body *{visibility:hidden}
+  #printArea,#printArea *{visibility:visible}
+  #printArea{display:block;position:absolute;left:0;top:0;width:100%}
+  .label-sheet{width:100mm;min-height:100mm;border:1.5px solid #000;padding:8mm;margin:0 auto;page-break-after:always;font-family:Arial,"Microsoft YaHei";color:#000;background:#fff}
+  .label-sheet h2{font-size:16pt;border-bottom:1.5px solid #000;padding-bottom:3mm;margin-bottom:3mm}
+  .label-sheet .row{display:flex;justify-content:space-between;font-size:10pt;margin-bottom:2mm}
+  .label-sheet .big{font-size:13pt;font-weight:bold}
+  .label-sheet .barcode{margin-top:4mm;font-family:monospace;font-size:14pt;letter-spacing:3px;text-align:center;border:1px dashed #000;padding:3mm}
+}
+</style>
+</head>
+<body data-view="portal">
+
+<!-- ======================= 门户首页视图 ======================= -->
+<div class="portal-view">
+  <!-- 导航栏 -->
+  <nav class="portal-navbar">
+    <div class="portal-nav-container">
+      <div class="portal-logo">
+        <span class="portal-logo-icon">📦</span>
+        <span>跨境电商运营台</span>
+      </div>
+      <div class="portal-nav-menus">
+        <button class="active">首页</button>
+        <button onclick="enterApp('manage','orders')">订单管理</button>
+        <button onclick="enterApp('manage','products')">商品中心</button>
+        <button onclick="enterApp('manage','orders')">全球市场</button>
+        <button onclick="enterApp('manage','inventory')">供应链</button>
+        <button onclick="enterApp('manage','profit')">利润核算</button>
+      </div>
+      <div class="portal-nav-actions">
+        <button class="portal-nav-btn outline" onclick="enterApp('staff')">👤 员工端</button>
+        <button class="portal-nav-btn primary" onclick="enterApp('manage')">🔧 管理端</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 首页横幅 -->
+  <section class="portal-hero">
+    <div class="portal-hero-grid-bg"></div>
+    <div class="portal-hero-glow portal-hero-glow-1"></div>
+    <div class="portal-hero-glow portal-hero-glow-2"></div>
+
+    <div class="portal-hero-top">
+      <div class="portal-hero-status">
+        <span class="portal-status-dot"></span>
+        <span>系统运行中 · 数据实时更新</span>
+        <span class="portal-status-time" id="portalTime">--:--:--</span>
+      </div>
+      <h1 class="portal-hero-title">跨境电商运营数字化智慧管理系统</h1>
+      <p class="portal-hero-subtitle">合规治理 · 产业协同 · 智慧决策</p>
+    </div>
+
+    <!-- KPI 横向滚动 -->
+    <div class="portal-scroll-wrap">
+      <div class="portal-scroll-track" id="kpiTrack">
+        <!-- 第一组 -->
+        <div class="portal-kpi portal-kpi-c">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#14B8A6"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            <span class="portal-kpi-lbl">总订单量</span>
+          </div>
+          <div class="portal-kpi-val">12,580<span class="portal-kpi-unit">单</span></div>
+          <div class="portal-kpi-trend up">↑ 23.5% 本月</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,25 12,22 24,18 36,20 48,14 60,16 72,9 84,11 100,5" fill="none" stroke="#14B8A6" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-b">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#3b82f6"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.39 4.18 3.91c-.01 1.83-1.38 2.83-3.12 3.16z"/></svg>
+            <span class="portal-kpi-lbl">总销售额</span>
+          </div>
+          <div class="portal-kpi-val">¥ 8,523<span class="portal-kpi-unit">万</span></div>
+          <div class="portal-kpi-trend up">↑ 18.2% 较上月</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,22 12,20 24,22 36,15 48,18 60,10 72,12 84,5 100,8" fill="none" stroke="#3b82f6" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-p">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#8b5cf6"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            <span class="portal-kpi-lbl">活跃商品</span>
+          </div>
+          <div class="portal-kpi-val">3,842<span class="portal-kpi-unit">种</span></div>
+          <div class="portal-kpi-trend up">↑ 156 新增</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,20 12,18 24,20 36,14 48,16 60,11 72,13 84,7 100,6" fill="none" stroke="#8b5cf6" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-g">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#10b981"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            <span class="portal-kpi-lbl">发货及时率</span>
+          </div>
+          <div class="portal-kpi-val">97.8<span class="portal-kpi-unit">%</span></div>
+          <div class="portal-kpi-trend up">↑ 2.1% 提升</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,18 12,16 24,18 36,12 48,14 60,9 72,11 84,6 100,4" fill="none" stroke="#10b981" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-o">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#ea580c"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+            <span class="portal-kpi-lbl">在途包裹</span>
+          </div>
+          <div class="portal-kpi-val">2,341<span class="portal-kpi-unit">件</span></div>
+          <div class="portal-kpi-trend down">↓ 312 昨日</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,10 12,12 24,14 36,12 48,16 60,14 72,18 84,16 100,20" fill="none" stroke="#ea580c" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-a">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#f59e0b"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <span class="portal-kpi-lbl">客户满意度</span>
+          </div>
+          <div class="portal-kpi-val">4.9<span class="portal-kpi-unit">分</span></div>
+          <div class="portal-kpi-trend up">↑ 0.2 较上月</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,16 12,14 24,16 36,10 48,12 60,7 72,9 84,5 100,3" fill="none" stroke="#f59e0b" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-r">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#ef4444"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            <span class="portal-kpi-lbl">风险预警</span>
+          </div>
+          <div class="portal-kpi-val">8<span class="portal-kpi-unit">条</span></div>
+          <div class="portal-kpi-trend down">↓ 4 较昨日</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,10 12,12 24,10 36,14 48,12 60,17 72,15 84,20 100,22" fill="none" stroke="#ef4444" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-t">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#14B8A6"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            <span class="portal-kpi-lbl">利润总额</span>
+          </div>
+          <div class="portal-kpi-val">¥ 1,826<span class="portal-kpi-unit">万</span></div>
+          <div class="portal-kpi-trend up">↑ 15.6% 较上月</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,22 12,20 24,22 36,16 48,18 60,12 72,14 84,9 100,7" fill="none" stroke="#14B8A6" stroke-width="2"/></svg>
+        </div>
+        <!-- 第二组(复制实现无缝循环) -->
+        <div class="portal-kpi portal-kpi-c">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#14B8A6"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            <span class="portal-kpi-lbl">总订单量</span>
+          </div>
+          <div class="portal-kpi-val">12,580<span class="portal-kpi-unit">单</span></div>
+          <div class="portal-kpi-trend up">↑ 23.5% 本月</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,25 12,22 24,18 36,20 48,14 60,16 72,9 84,11 100,5" fill="none" stroke="#14B8A6" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-b">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#3b82f6"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.39 4.18 3.91c-.01 1.83-1.38 2.83-3.12 3.16z"/></svg>
+            <span class="portal-kpi-lbl">总销售额</span>
+          </div>
+          <div class="portal-kpi-val">¥ 8,523<span class="portal-kpi-unit">万</span></div>
+          <div class="portal-kpi-trend up">↑ 18.2% 较上月</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,22 12,20 24,22 36,15 48,18 60,10 72,12 84,5 100,8" fill="none" stroke="#3b82f6" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-p">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#8b5cf6"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            <span class="portal-kpi-lbl">活跃商品</span>
+          </div>
+          <div class="portal-kpi-val">3,842<span class="portal-kpi-unit">种</span></div>
+          <div class="portal-kpi-trend up">↑ 156 新增</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,20 12,18 24,20 36,14 48,16 60,11 72,13 84,7 100,6" fill="none" stroke="#8b5cf6" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-g">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#10b981"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            <span class="portal-kpi-lbl">发货及时率</span>
+          </div>
+          <div class="portal-kpi-val">97.8<span class="portal-kpi-unit">%</span></div>
+          <div class="portal-kpi-trend up">↑ 2.1% 提升</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,18 12,16 24,18 36,12 48,14 60,9 72,11 84,6 100,4" fill="none" stroke="#10b981" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-o">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#ea580c"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+            <span class="portal-kpi-lbl">在途包裹</span>
+          </div>
+          <div class="portal-kpi-val">2,341<span class="portal-kpi-unit">件</span></div>
+          <div class="portal-kpi-trend down">↓ 312 昨日</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,10 12,12 24,14 36,12 48,16 60,14 72,18 84,16 100,20" fill="none" stroke="#ea580c" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-a">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#f59e0b"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <span class="portal-kpi-lbl">客户满意度</span>
+          </div>
+          <div class="portal-kpi-val">4.9<span class="portal-kpi-unit">分</span></div>
+          <div class="portal-kpi-trend up">↑ 0.2 较上月</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,16 12,14 24,16 36,10 48,12 60,7 72,9 84,5 100,3" fill="none" stroke="#f59e0b" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-r">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#ef4444"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            <span class="portal-kpi-lbl">风险预警</span>
+          </div>
+          <div class="portal-kpi-val">8<span class="portal-kpi-unit">条</span></div>
+          <div class="portal-kpi-trend down">↓ 4 较昨日</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,10 12,12 24,10 36,14 48,12 60,17 72,15 84,20 100,22" fill="none" stroke="#ef4444" stroke-width="2"/></svg>
+        </div>
+        <div class="portal-kpi portal-kpi-t">
+          <div class="portal-kpi-h">
+            <svg viewBox="0 0 24 24" class="portal-kpi-icon" fill="#14B8A6"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            <span class="portal-kpi-lbl">利润总额</span>
+          </div>
+          <div class="portal-kpi-val">¥ 1,826<span class="portal-kpi-unit">万</span></div>
+          <div class="portal-kpi-trend up">↑ 15.6% 较上月</div>
+          <svg class="portal-kpi-mini" viewBox="0 0 100 30"><polyline points="0,22 12,20 24,22 36,16 48,18 60,12 72,14 84,9 100,7" fill="none" stroke="#14B8A6" stroke-width="2"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA + 跑马灯 -->
+    <div class="portal-hero-bottom">
+      <div class="portal-cta">
+        <button class="portal-cta-btn primary" onclick="enterApp('manage')">🔧 进入管理端</button>
+        <button class="portal-cta-btn outline" onclick="enterApp('staff')">👤 进入员工端</button>
+      </div>
+      <div class="portal-stream">
+        <div class="portal-stream-label">实时事件</div>
+        <div class="portal-stream-wrap">
+          <div class="portal-stream-track">
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-green"></span>[<span class="portal-status-time">--:--:--</span>] 今日订单量突破 1,280 单,GMV 达 186 万元</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-blue"></span>[<span class="portal-status-time">--:--:--</span>] 「深圳华强北数码」店铺上新 32 款 SKU</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-cyan"></span>[<span class="portal-status-time">--:--:--</span>] 跨境小包发货完成 2,341 件签收确认</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-purple"></span>[<span class="portal-status-time">--:--:--</span>] 广州仓库存预警:iPhone 配件库存低于阈值</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-orange"></span>[<span class="portal-status-time">--:--:--</span>] 「珠海联邦制药」完成本月利润核算,利润率 21.3%</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-green"></span>[<span class="portal-status-time">--:--:--</span>] 本月新增活跃卖家 23 家,合规认证通过 18 家</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-blue"></span>[<span class="portal-status-time">--:--:--</span>] 今日订单量突破 1,280 单,GMV 达 186 万元</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-cyan"></span>[<span class="portal-status-time">--:--:--</span>] 「深圳华强北数码」店铺上新 32 款 SKU</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-purple"></span>[<span class="portal-status-time">--:--:--</span>] 跨境小包发货完成 2,341 件签收确认</span>
+            <span class="portal-stream-item"><span class="portal-stream-dot portal-dot-orange"></span>[<span class="portal-status-time">--:--:--</span>] 广州仓库存预警:iPhone 配件库存低于阈值</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 行业痛点 ========== -->
+  <section class="portal-problems">
+    <div class="portal-container">
+      <div class="portal-section-header">
+        <h2>行业痛点</h2>
+        <p>传统跨境电商运营面临的五大挑战</p>
+      </div>
+      <div class="portal-problems-grid">
+        <div class="portal-problem-card">
+          <div class="portal-problem-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <h3>多平台管理难</h3>
+          <p>Amazon、eBay、TikTok Shop 等多平台订单分散,数据孤岛无法打通,运营效率低下</p>
+        </div>
+        <div class="portal-problem-card">
+          <div class="portal-problem-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <h3>库存同步乱</h3>
+          <p>多仓库库存无法实时同步,爆款断货、滞销积压并存,资金占用率居高不下</p>
+        </div>
+        <div class="portal-problem-card">
+          <div class="portal-problem-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3>合规风险高</h3>
+          <p>各国海关政策、税务合规、产品认证要求各异,违规风险难以提前预警</p>
+        </div>
+        <div class="portal-problem-card">
+          <div class="portal-problem-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          </div>
+          <h3>利润核算模糊</h3>
+          <p>头程运费、平台佣金、广告支出层层剥皮,实际利润率算不清,决策无数据支撑</p>
+        </div>
+        <div class="portal-problem-card">
+          <div class="portal-problem-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3>团队协同差</h3>
+          <p>运营、仓库、财务各自为战,信息传递滞后,跨部门协作效率极低</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 核心功能 ========== -->
+  <section class="portal-features">
+    <div class="portal-container">
+      <div class="portal-section-header">
+        <h2>核心功能模块</h2>
+        <p>六大系统模块,全方位赋能跨境运营</p>
+      </div>
+      <div class="portal-features-grid">
+        <div class="portal-feature-card">
+          <div class="portal-feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" stroke-width="2"><path d="M9 17l-5-5 1.41-1.41L9 14.17l9.59-9.59L20 6l-11 11z"/></svg>
+          </div>
+          <h3>订单运营中心</h3>
+          <ul>
+            <li>多平台订单实时聚合</li>
+            <li>智能分单与状态追踪</li>
+            <li>异常订单自动预警</li>
+            <li>批量发货极速处理</li>
+          </ul>
+        </div>
+        <div class="portal-feature-card">
+          <div class="portal-feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <h3>商品 SKU 管理</h3>
+          <ul>
+            <li>多平台商品一键同步</li>
+            <li>变体组合灵活配置</li>
+            <li>价格利润智能计算</li>
+            <li>竞品价格监控分析</li>
+          </ul>
+        </div>
+        <div class="portal-feature-card">
+          <div class="portal-feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" stroke-width="2"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4z"/></svg>
+          </div>
+          <h3>库存物流体系</h3>
+          <ul>
+            <li>多仓库实时库存同步</li>
+            <li>智能补货自动提醒</li>
+            <li>面单批量极速打印</li>
+            <li>物流轨迹全链路追踪</li>
+          </ul>
+        </div>
+        <div class="portal-feature-card">
+          <div class="portal-feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+          </div>
+          <h3>利润智能核算</h3>
+          <ul>
+            <li>全成本利润穿透分析</li>
+            <li>头程运费精准分摊</li>
+            <li>平台佣金自动计算</li>
+            <li>多维度盈亏报表</li>
+          </ul>
+        </div>
+        <div class="portal-feature-card">
+          <div class="portal-feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>合规风控系统</h3>
+          <ul>
+            <li>各国政策合规库</li>
+            <li>产品认证状态追踪</li>
+            <li>税务申报提醒</li>
+            <li>风险事件实时预警</li>
+          </ul>
+        </div>
+        <div class="portal-feature-card portal-feature-card-featured">
+          <div class="portal-feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          </div>
+          <h3>数据决策中心</h3>
+          <ul>
+            <li>运营总览实时大屏</li>
+            <li>全平台数据聚合</li>
+            <li>AI 销量趋势预测</li>
+            <li>智能自动报表推送</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 建设目标 ========== -->
+  <section class="portal-goals">
+    <div class="portal-container">
+      <div class="portal-section-header">
+        <h2>建设目标</h2>
+        <p>四大目标,构建跨境电商数字化运营生态</p>
+      </div>
+      <div class="portal-goals-grid">
+        <div class="portal-goal-card">
+          <div class="portal-goal-number">01</div>
+          <h3>效率目标</h3>
+          <p>打通多平台数据孤岛,实现订单、库存、物流全链路自动化,运营效率提升 300%</p>
+        </div>
+        <div class="portal-goal-card">
+          <div class="portal-goal-number">02</div>
+          <h3>合规目标</h3>
+          <p>建立全球合规政策库,税务、认证、政策风险实时预警,合规成本降低 60%</p>
+        </div>
+        <div class="portal-goal-card">
+          <div class="portal-goal-number">03</div>
+          <h3>利润目标</h3>
+          <p>全链路成本精准核算,实时洞悉每笔订单真实利润,利润率提升 15%~25%</p>
+        </div>
+        <div class="portal-goal-card">
+          <div class="portal-goal-number">04</div>
+          <h3>决策目标</h3>
+          <p>AI 数据驱动决策,从经验运营升级为数据运营,管理决策效率提升 5 倍</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 系统架构 ========== -->
+  <section class="portal-arch">
+    <div class="portal-container">
+      <div class="portal-section-header">
+        <h2>系统架构</h2>
+        <p>五层架构设计,稳定可靠,高弹性扩展</p>
+      </div>
+      <div class="portal-arch-diagram">
+        <div class="portal-arch-layer">
+          <div class="portal-arch-title">决策层</div>
+          <div class="portal-arch-items">
+            <span class="portal-arch-item">运营总览大屏</span>
+            <span class="portal-arch-item">利润分析大屏</span>
+            <span class="portal-arch-item">物流追踪大屏</span>
+            <span class="portal-arch-item">AI 智能报表</span>
+          </div>
+        </div>
+        <div class="portal-arch-layer">
+          <div class="portal-arch-title">应用层</div>
+          <div class="portal-arch-items">
+            <span class="portal-arch-item">订单管理</span>
+            <span class="portal-arch-item">商品 SKU</span>
+            <span class="portal-arch-item">库存发货</span>
+            <span class="portal-arch-item">利润核算</span>
+            <span class="portal-arch-item">合规风控</span>
+            <span class="portal-arch-item">数据决策</span>
+          </div>
+        </div>
+        <div class="portal-arch-layer">
+          <div class="portal-arch-title">业务层</div>
+          <div class="portal-arch-items">
+            <span class="portal-arch-item">多平台对接</span>
+            <span class="portal-arch-item">订单分单</span>
+            <span class="portal-arch-item">库存同步</span>
+            <span class="portal-arch-item">物流追踪</span>
+            <span class="portal-arch-item">成本核算</span>
+          </div>
+        </div>
+        <div class="portal-arch-layer">
+          <div class="portal-arch-title">技术层</div>
+          <div class="portal-arch-items">
+            <span class="portal-arch-item">API 网关</span>
+            <span class="portal-arch-item">数据中台</span>
+            <span class="portal-arch-item">消息推送</span>
+            <span class="portal-arch-item">文件存储</span>
+            <span class="portal-arch-item">日志审计</span>
+          </div>
+        </div>
+        <div class="portal-arch-layer">
+          <div class="portal-arch-title">数据层</div>
+          <div class="portal-arch-items">
+            <span class="portal-arch-item">订单数据库</span>
+            <span class="portal-arch-item">商品数据库</span>
+            <span class="portal-arch-item">库存数据库</span>
+            <span class="portal-arch-item">财务数据库</span>
+            <span class="portal-arch-item">日志数据库</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div><!-- /portal-view -->
+
+<div class="app">
+  <!-- ===== 左侧导航 ===== -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="ic">跨</div>
+      <div><b>跨境电商运营台</b><small>Cross-Border Console <span class="role-badge" id="roleBadge">管理端</span></small></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-item active" data-page="dashboard" data-manage-only><span class="em">📊</span>控制台</div>
+      <div class="nav-item active" data-page="workbench" data-staff-only><span class="em">📋</span>工作台</div>
+      <div class="nav-item" data-page="orders"><span class="em">📦</span>订单管理</div>
+      <div class="nav-item" data-page="products" data-manage-only><span class="em">🛍️</span>商品</div>
+      <div class="nav-item" data-page="sku" data-manage-only><span class="em">🏷️</span>SKU</div>
+      <div class="nav-item" data-page="inventory"><span class="em">📚</span>库存</div>
+      <div class="nav-item" data-page="shipping"><span class="em">🚚</span>发货</div>
+      <div class="nav-item" data-page="labels"><span class="em">🖨️</span>面单</div>
+      <div class="nav-item" data-page="profit" data-manage-only><span class="em">💰</span>利润核算</div>
+    </nav>
+    <div class="side-foot">
+      <button class="role-switch-btn" id="roleSwitchBtn" onclick="switchRole()">🔄 切换到员工端</button>
+      纯前端 · 数据存于本机浏览器<br>localStorage 关闭不丢
+    </div>
+  </aside>
+
+  <!-- ===== 主内容 ===== -->
+  <main class="main">
+    <div class="topbar">
+      <h1 id="pageTitle">控制台</h1>
+      <div class="right">
+        <button class="btn console-return-btn" onclick="switchView('portal')" title="返回门户首页">🌐 返回门户</button>
+        <span class="date-chip" id="todayChip"></span>
+        <button class="btn" id="themeBtn">🌙 深色</button>
+        <span class="role-badge manage-only" id="topRoleBadgeM" style="background:var(--primary-light);color:var(--primary)">🔧 管理端</span>
+        <span class="role-badge staff-only" id="topRoleBadgeS" style="background:#FFF7E8;color:#FF7D00">👤 员工端</span>
+        <div class="user-area" style="position:relative">
+          <button class="btn" onclick="toggleDataMenu(event)">🗂️ 数据管理 ▾</button>
+          <div class="user-menu" id="dataMenu" onclick="event.stopPropagation()">
+            <div class="mi" onclick="exportData()">📤 导出全部数据 (JSON)</div>
+            <div class="mi" onclick="$('#impFile').click()">📥 导入数据 (JSON)</div>
+            <div class="mi danger" onclick="resetDemo()">🗑️ 重置演示数据</div>
+          </div>
+        </div>
+        <input type="file" id="impFile" accept=".json,application/json" style="display:none" onchange="importData(event)">
+      </div>
+    </div>
+
+    <!-- ============ 0. 员工工作台 (staff-only) ============ -->
+    <section class="page" id="page-workbench">
+      <div class="grid4">
+        <div class="card stat"><div class="lb">待发货订单</div><div class="val num" id="wbPending" style="color:var(--warning)">0</div><div class="sub">需要尽快处理</div><div class="corner">🚚</div></div>
+        <div class="card stat"><div class="lb">库存预警 SKU</div><div class="val num red" id="wbWarn">0</div><div class="sub">低于预警线</div><div class="corner">⚠️</div></div>
+        <div class="card stat"><div class="lb">今日已发货</div><div class="val num" style="color:var(--success)" id="wbShipped">0</div><div class="sub" id="wbShippedSub"></div><div class="corner">📦</div></div>
+        <div class="card stat"><div class="lb">待审核订单</div><div class="val num" id="wbReview">0</div><div class="sub">等待确认</div><div class="corner">📋</div></div>
+      </div>
+      <div class="grid-main mt16" style="grid-template-columns:1fr 1fr">
+        <div class="card quick">
+          <h3>快捷操作</h3>
+          <a onclick="go('shipping')">🚚 去发货<span class="badge b-orange" id="wbQcShip">0</span></a>
+          <a onclick="go('labels')">🖨️ 打印面单<span class="badge b-blue" id="wbQcLabel">0</span></a>
+          <a onclick="go('inventory')">📚 查看库存<span class="badge b-gray">→</span></a>
+          <a onclick="go('orders','待发货')">📦 待发货订单<span class="badge b-orange" id="wbQcPending">0</span></a>
+        </div>
+        <div class="card">
+          <h3>📋 今日任务清单</h3>
+          <div id="wbTaskList" style="line-height:2.2;font-size:14px"></div>
+        </div>
+      </div>
+      <div class="card mt16">
+        <h3>📦 待发货订单 (前 5 条)</h3>
+        <div class="tbl-wrap" style="max-height:300px">
+          <table>
+            <thead><tr><th>订单号</th><th>平台</th><th>买家 / 国家</th><th>SKU × 数量</th><th>状态</th><th style="width:120px">操作</th></tr></thead>
+            <tbody id="wbShipBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 1. 控制台 ============ -->
+    <section class="page show" id="page-dashboard">
+      <div class="grid4">
+        <div class="card stat"><div class="lb">今日订单数</div><div class="val num" id="stOrders">0</div><div class="sub" id="stOrdersSub"></div><div class="corner">🛒</div></div>
+        <div class="card stat"><div class="lb">今日已发货</div><div class="val num" id="stShipped">0</div><div class="sub" id="stShippedSub"></div><div class="corner">🚀</div></div>
+        <div class="card stat"><div class="lb">在售 SKU 数</div><div class="val num" id="stSku">0</div><div class="sub" id="stSkuSub"></div><div class="corner">🏷️</div></div>
+        <div class="card stat"><div class="lb">今日预估毛利</div><div class="val num" id="stProfit">$0</div><div class="sub" id="stProfitSub"></div><div class="corner">💵</div></div>
+      </div>
+      <div class="grid-main">
+        <div class="card quick">
+          <h3>快捷入口</h3>
+          <a onclick="go('orders')">📦 订单处理<span class="badge b-blue" id="qcAll">0</span></a>
+          <a onclick="go('orders','待发货')">🚚 待发货<span class="badge b-orange" id="qcShip">0</span></a>
+          <a onclick="go('inventory')">⚠️ 库存预警<span class="badge b-red" id="qcWarn">0</span></a>
+          <a onclick="go('profit')">💰 利润查看<span class="badge b-green">→</span></a>
+        </div>
+        <div class="card">
+          <h3>近 7 天销量趋势</h3>
+          <div class="chart" id="chartLine"></div>
+        </div>
+        <div class="card">
+          <h3>平台销售额占比</h3>
+          <div class="chart" id="chartPie"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 2. 订单管理 ============ -->
+    <section class="page" id="page-orders">
+      <div class="card">
+        <div class="toolbar">
+          <input class="search-box" id="orderSearch" placeholder="🔍 搜订单号 / 买家 / 国家 / 平台 / SKU" oninput="renderOrders()">
+          <select id="orderPlatform" onchange="renderOrders()">
+            <option value="">全部平台</option><option>亚马逊</option><option>Temu</option><option>TikTok</option><option>Shopee</option>
+          </select>
+          <div class="spacer"></div>
+          <button class="btn" onclick="batchOrder('review')">✅ 批量审核</button>
+          <button class="btn" onclick="batchOrder('ship')">🚚 批量标记发货</button>
+          <button class="btn primary manage-only" onclick="exportOrders()">⬇ 导出 Excel</button>
+        </div>
+        <div class="toolbar tabs" id="orderTabs">
+          <button class="tab active" data-st="">全部</button>
+          <button class="tab" data-st="待审核">待审核</button>
+          <button class="tab" data-st="待发货">待发货</button>
+          <button class="tab" data-st="已发货">已发货</button>
+          <button class="tab" data-st="异常/退款">异常 / 退款</button>
+        </div>
+        <div class="tbl-wrap">
+          <table id="orderTable">
+            <thead><tr>
+              <th style="width:36px"><input type="checkbox" id="orderCkAll" onchange="toggleAllOrders(this)"></th>
+              <th>订单号</th><th>平台</th><th>买家 / 国家</th><th>SKU</th><th>金额</th><th>订单时间</th><th>状态</th><th style="width:170px">操作</th>
+            </tr></thead>
+            <tbody id="orderBody"></tbody>
+          </table>
+        </div>
+        <p class="muted mt16" id="orderCount"></p>
+      </div>
+    </section>
+
+    <!-- ============ 3. 商品 ============ -->
+    <section class="page" id="page-products">
+      <div class="card">
+        <div class="toolbar">
+          <input class="search-box" id="prodSearch" placeholder="🔍 搜商品名称 / 平台" oninput="renderProducts()">
+          <select id="prodPlatform" onchange="renderProducts()">
+            <option value="">全部平台</option><option>亚马逊</option><option>Temu</option><option>TikTok</option><option>Shopee</option>
+          </select>
+          <select id="prodStatus" onchange="renderProducts()">
+            <option value="">全部状态</option><option>在售</option><option>停售</option>
+          </select>
+          <div class="spacer"></div>
+          <button class="btn" onclick="exportProducts()">⬇ 导出商品表</button>
+          <button class="btn primary" onclick="openProdModal()">+ 新增商品</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:60px">图片</th><th>SKU</th><th>商品名称</th><th>采购价</th><th>售价</th><th>毛利率</th><th>所属平台</th><th>状态</th><th style="width:130px">操作</th>
+            </tr></thead>
+            <tbody id="prodBody"></tbody>
+          </table>
+        </div>
+        <p class="muted mt16" id="prodCount"></p>
+      </div>
+    </section>
+
+    <!-- ============ 4. SKU 管理 ============ -->
+    <section class="page" id="page-sku">
+      <div class="card">
+        <div class="toolbar">
+          <input class="search-box" id="skuSearch" placeholder="🔍 搜 SKU / 商品名称 / 平台" oninput="renderSku()">
+          <select id="skuPlatform" onchange="renderSku()">
+            <option value="">全部平台</option><option>亚马逊</option><option>Temu</option><option>TikTok</option><option>Shopee</option>
+          </select>
+          <select id="skuStatus" onchange="renderSku()">
+            <option value="">全部状态</option><option>在售</option><option>停售</option>
+          </select>
+          <select id="skuStockFilter" onchange="renderSku()">
+            <option value="">全部库存</option><option value="low">⚠️ 低于预警</option><option value="zero">🔴 零库存</option><option value="ok">✅ 库存充足</option>
+          </select>
+          <div class="spacer"></div>
+          <button class="btn" onclick="batchWarn()">⚠️ 批量设置预警线</button>
+          <button class="btn" onclick="batchAdjustStock()">📦 批量调整库存</button>
+          <button class="btn" onclick="exportSku()">⬇ 导出 SKU 表</button>
+        </div>
+        <div class="grid4" style="margin-bottom:16px">
+          <div class="card stat"><div class="lb">SKU 总数</div><div class="val num" id="skTotal">0</div><div class="corner">🏷️</div></div>
+          <div class="card stat"><div class="lb">在售 SKU</div><div class="val num" id="skOnSale">0</div><div class="corner">✅</div></div>
+          <div class="card stat"><div class="lb">库存预警 SKU</div><div class="val num red" id="skWarn">0</div><div class="corner">⚠️</div></div>
+          <div class="card stat"><div class="lb">库存总件数</div><div class="val num" id="skPieces">0</div><div class="corner">📦</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:36px"><input type="checkbox" id="skuCkAll" onchange="toggleAllProds(this)"></th>
+              <th>SKU 编码</th><th>商品名称</th><th>所属平台</th><th>当前库存</th><th>预警线</th><th>状态</th><th>采购价</th><th>售价</th><th style="width:120px">操作</th>
+            </tr></thead>
+            <tbody id="skuBody"></tbody>
+          </table>
+        </div>
+        <p class="muted mt16" id="skuCount"></p>
+      </div>
+    </section>
+
+    <!-- ============ 5. 库存 ============ -->
+    <section class="page" id="page-inventory">
+      <div class="grid4">
+        <div class="card stat"><div class="lb">SKU 总数</div><div class="val num" id="ivTotal">0</div><div class="corner">📚</div></div>
+        <div class="card stat"><div class="lb">库存总件数</div><div class="val num" id="ivPieces">0</div><div class="corner">📦</div></div>
+        <div class="card stat"><div class="lb">库存预警 SKU</div><div class="val num red" id="ivWarn">0</div><div class="corner">⚠️</div></div>
+        <div class="card stat"><div class="lb">库存成本估值</div><div class="val num" id="ivValue">$0</div><div class="corner">💲</div></div>
+      </div>
+      <div class="grid-main mt16" style="grid-template-columns:1fr 1fr">
+        <div class="card">
+          <h3>⚠️ 库存预警(低于预警线标红)</h3>
+          <div class="tbl-wrap" style="max-height:340px">
+            <table>
+              <thead><tr><th>SKU</th><th>名称</th><th>库存</th><th>预警线</th><th>状态</th></tr></thead>
+              <tbody id="warnBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h3>📥 入库登记</h3>
+          <div class="toolbar">
+            <select id="inSku" style="min-width:170px"></select>
+            <input id="inQty" type="number" min="1" placeholder="数量" style="width:90px">
+            <input id="inNote" placeholder="备注(选填)" style="width:150px">
+            <button class="btn primary sm" onclick="addInbound()">入库</button>
+          </div>
+          <div class="tbl-wrap" style="max-height:280px">
+            <table>
+              <thead><tr><th>时间</th><th>SKU</th><th>数量</th><th>备注</th></tr></thead>
+              <tbody id="inBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card mt16">
+        <h3>📊 全部 SKU 库存明细</h3>
+        <div class="toolbar">
+          <input class="search-box" id="ivSearch" placeholder="🔍 搜 SKU / 商品名称" oninput="renderInventory()">
+          <select id="ivPlatform" onchange="renderInventory()">
+            <option value="">全部平台</option><option>亚马逊</option><option>Temu</option><option>TikTok</option><option>Shopee</option>
+          </select>
+          <div class="spacer"></div>
+          <button class="btn" onclick="exportInventory()">⬇ 导出库存表</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>SKU</th><th>商品名称</th><th>所属平台</th><th>当前库存</th><th>预警线</th><th>采购成本</th><th>库存估值</th><th>状态</th></tr></thead>
+            <tbody id="ivBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 6. 发货 ============ -->
+    <section class="page" id="page-shipping">
+      <div class="card">
+        <h3>🚚 待发货处理 <span class="muted" style="font-weight:400;font-size:12px">(选仓库和渠道 → 打印面单 → 标记发货,发货自动扣库存)</span></h3>
+        <div class="toolbar">
+          <select id="shipPlatform" onchange="renderShipping()">
+            <option value="">全部平台</option><option>亚马逊</option><option>Temu</option><option>TikTok</option><option>Shopee</option>
+          </select>
+          <input class="search-box" id="shipSearch" placeholder="🔍 搜订单号 / 买家 / SKU" oninput="renderShipping()">
+          <div class="spacer"></div>
+          <button class="btn" onclick="batchShip()">🚚 批量标记发货</button>
+          <button class="btn" onclick="batchPrintLabel()">🖨️ 批量打印面单</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:36px"><input type="checkbox" id="shipCkAll" onchange="toggleAllShip(this)"></th>
+              <th>订单号</th><th>平台</th><th>买家 / 国家</th><th>SKU × 数量</th><th>仓库</th><th>物流渠道</th><th style="width:200px">操作</th>
+            </tr></thead>
+            <tbody id="shipBody"></tbody>
+          </table>
+        </div>
+        <p class="muted mt16" id="shipCount"></p>
+      </div>
+      <div class="card mt16">
+        <h3>📦 已发货记录</h3>
+        <div class="toolbar">
+          <input class="search-box" id="shippedSearch" placeholder="🔍 搜订单号 / 买家" oninput="renderShipping()">
+          <div class="spacer"></div>
+          <span class="muted">仅显示最近 50 条</span>
+        </div>
+        <div class="tbl-wrap" style="max-height:none">
+          <table>
+            <thead><tr><th>发货时间</th><th>订单号</th><th>平台</th><th>买家 / 国家</th><th>仓库</th><th>物流渠道</th><th>操作</th></tr></thead>
+            <tbody id="shippedBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 7. 面单 ============ -->
+    <section class="page" id="page-labels">
+      <div class="card">
+        <h3>🖨️ 面单打印中心</h3>
+        <p class="muted">打印发货面单,支持单个打印和批量打印。面单包含订单号、买家信息、仓库渠道、SKU 明细等关键信息。</p>
+        <div class="toolbar mt16">
+          <input class="search-box" id="labelSearch" placeholder="🔍 搜订单号 / 买家 / SKU" oninput="renderLabels()">
+          <select id="labelPlatform" onchange="renderLabels()">
+            <option value="">全部平台</option><option>亚马逊</option><option>Temu</option><option>TikTok</option><option>Shopee</option>
+          </select>
+          <select id="labelStatus" onchange="renderLabels()">
+            <option value="pending">待发货</option>
+            <option value="shipped">已发货</option>
+          </select>
+          <div class="spacer"></div>
+          <button class="btn" onclick="printAllLabels()">🖨️ 打印全部面单</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>订单号</th><th>平台</th><th>买家 / 国家</th><th>SKU 明细</th><th>仓库</th><th>物流渠道</th><th>件数</th><th>订单金额</th><th style="width:120px">操作</th>
+            </tr></thead>
+            <tbody id="labelBody"></tbody>
+          </table>
+        </div>
+        <p class="muted mt16" id="labelCount"></p>
+      </div>
+    </section>
+
+    <!-- ============ 5. 利润核算 ============ -->
+    <section class="page" id="page-profit">
+      <div class="card">
+        <div class="toolbar">
+          <div class="tabs" id="profitTabs">
+            <button class="tab active" data-range="day">按天(今日)</button>
+            <button class="tab" data-range="week">按周(近7天)</button>
+            <button class="tab" data-range="month">按月(近30天)</button>
+          </div>
+          <select id="profitPlatform" onchange="renderProfit()">
+            <option value="">全部平台</option><option>亚马逊</option><option>Temu</option><option>TikTok</option><option>Shopee</option>
+          </select>
+          <select id="profitSku" onchange="renderProfit()"><option value="">全部 SKU</option></select>
+          <div class="spacer"></div>
+          <button class="btn primary" onclick="exportProfit()">⬇ 导出利润表</button>
+        </div>
+        <div class="grid4" style="margin-bottom:16px">
+          <div class="card stat"><div class="lb">销售额</div><div class="val num" id="pfSales">$0</div><div class="corner">💵</div></div>
+          <div class="card stat"><div class="lb">总成本(采购+运费+佣金+广告)</div><div class="val num" id="pfCost">$0</div><div class="corner">🧾</div></div>
+          <div class="card stat"><div class="lb">净利润</div><div class="val num green" id="pfNet">$0</div><div class="corner">💰</div></div>
+          <div class="card stat"><div class="lb">利润率</div><div class="val num" id="pfRate">0%</div><div class="corner">📈</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>SKU</th><th>商品名称</th><th>订单数</th><th>销售额</th><th>采购成本</th><th>运费</th><th>佣金</th><th>广告(分摊)</th><th>净利润</th><th>利润率</th></tr></thead>
+            <tbody id="profitBody"></tbody>
+          </table>
+        </div>
+        <p class="muted mt16">口径:利润 = 售价 - 采购成本 - 运费 - 平台佣金 - 广告费(分摊);统计范围不含「异常/退款」订单。</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ===== 商品新增/编辑弹窗 ===== -->
+<div class="mask" id="prodMask">
+  <div class="modal">
+    <h3 id="prodModalTitle">新增 SKU</h3>
+    <div class="form-row"><label>商品图片</label><label class="up-area" id="upArea" for="fFile">📷<span class="ph">+</span><span id="upHint">点击上传(≤2MB)</span><input type="file" id="fFile" accept="image/*" style="display:none"><button class="x" id="upClear" type="button" onclick="clearImg(event)">×</button><img id="upPreview" style="display:none"></label></div>
+    <div class="form-row"><label>SKU *</label><input id="fSku" placeholder="唯一编码,如 S009"></div>
+    <div class="form-row"><label>商品名称 *</label><input id="fName" placeholder="商品名称"></div>
+    <div class="form-row"><label>采购价 $</label><input id="fCost" type="number" min="0" step="0.01"></div>
+    <div class="form-row"><label>售价 $</label><input id="fPrice" type="number" min="0" step="0.01"></div>
+    <div class="form-row"><label>库存数量</label><input id="fStock" type="number" min="0"></div>
+    <div class="form-row"><label>库存预警线</label><input id="fWarn" type="number" min="0"></div>
+    <div class="form-row"><label>所属平台</label><select id="fPlatform"><option>亚马逊</option><option>Temu</option><option>TikTok</option><option>Shopee</option></select></div>
+    <div class="form-row"><label>状态</label><select id="fStatus"><option>在售</option><option>停售</option></select></div>
+    <div class="foot">
+      <button class="btn" onclick="closeMask('prodMask')">取消</button>
+      <button class="btn primary" onclick="saveProduct()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 订单详情弹窗 ===== -->
+<div class="mask" id="orderMask">
+  <div class="modal" id="orderModalBody"></div>
+</div>
+
+<!-- ===== 打印面单区域 ===== -->
+<div id="printArea"></div>
+<div id="toast"></div>
+
+<!-- 大图预览 -->
+<div class="zoom-mask" id="zoomMask" onclick="if(event.target===this)closeZoom()">
+  <img id="zoomImg" alt="">
+  <div class="zoom-bar" onclick="event.stopPropagation()">
+    <button onclick="zoomBy(0.8)" title="缩小">-</button>
+    <span class="zi" id="zoomInfo">100%</span>
+    <button onclick="zoomBy(1.25)" title="放大">+</button>
+    <button onclick="resetZoom()" title="还原">⟲</button>
+    <button onclick="closeZoom()" title="关闭">×</button>
+  </div>
+</div>
+
+<script>
+/* ================= 工具 ================= */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const fmt$=n=>'$'+(+n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const fmtN=n=>(+n).toLocaleString();
+const todayStr=()=>new Date().toISOString().slice(0,10);
+const daysAgo=n=>{const d=new Date();d.setDate(d.getDate()-n);return d;};
+function toast(msg){const t=$('#toast');t.textContent=msg;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',2200);}
+// 带缓存的数据加载,避免重复解析
+const _cache=new Map();
+function load(k,def){if(_cache.has(k))return _cache.get(k);try{const v=localStorage.getItem(k);const r=v?JSON.parse(v):def;_cache.set(k,r);return r;}catch(e){return def;}}
+function save(k,v){_cache.set(k,v);localStorage.setItem(k,JSON.stringify(v));}
+function clearCache(k){_cache.delete(k);}
+
+/* ================= 数据 ================= */
+let products=load('xb_products',null);
+let orders=load('xb_orders',null);
+let inbound=load('xb_inbound',[]);
+const PLATFORMS=['亚马逊','Temu','TikTok','Shopee'];
+const CHANNELS=['专线','邮政','商业快递','平台物流'];
+const WAREHOUSES=['深圳仓','义乌仓','海外仓'];
+const COMM_RATE={'亚马逊':0.15,'Temu':0.05,'TikTok':0.08,'Shopee':0.06};
+
+function seedData(){
+  products=[
+    {sku:'S001',name:'无线蓝牙耳机 Pro',cost:28,price:89,stock:120,warn:30,platform:'亚马逊',status:'在售'},
+    {sku:'S002',name:'便携榨汁杯 350ml',cost:22,price:69,stock:18,warn:20,platform:'Temu',status:'在售'},
+    {sku:'S003',name:'LED 化妆镜带灯',cost:35,price:99,stock:66,warn:25,platform:'TikTok',status:'在售'},
+    {sku:'S004',name:'宠物梳毛神器',cost:12,price:39,stock:210,warn:50,platform:'Shopee',status:'在售'},
+    {sku:'S005',name:'折叠手机支架',cost:6,price:25,stock:8,warn:40,platform:'亚马逊',status:'在售'},
+    {sku:'S006',name:'车载无线吸尘器',cost:45,price:129,stock:73,warn:20,platform:'Temu',status:'在售'},
+    {sku:'S007',name:'硅胶厨具 5 件套',cost:18,price:59,stock:0,warn:15,platform:'Shopee',status:'停售'},
+    {sku:'S008',name:'迷你 USB 加湿器',cost:16,price:55,stock:95,warn:30,platform:'TikTok',status:'在售'},
+  ];
+  const buyers=[['John Smith','美国'],['Emma Wilson','英国'],['Hans Müller','德国'],['Yuki Tanaka','日本'],['Carlos Ruiz','西班牙'],['Marie Dubois','法国'],['Ahmed Ali','阿联酋'],['Siti Rahayu','印尼'],['Somchai P.','泰国'],['Nguyen Van A','越南'],['Lucas Silva','巴西'],['Anna Kowalski','波兰']];
+  const statuses=['待审核','待审核','待发货','待发货','待发货','已发货','已发货','已发货','已发货','异常/退款'];
+  orders=[];let seq=1;
+  for(let d=6;d>=0;d--){
+    const cnt=3+Math.floor(Math.random()*4)+(d===0?2:0); // 今天多两单
+    for(let i=0;i<cnt;i++){
+      const p=PLATFORMS[Math.floor(Math.random()*4)];
+      const b=buyers[Math.floor(Math.random()*buyers.length)];
+      const nItems=Math.random()<0.75?1:2;
+      const items=[];const used=new Set();
+      for(let k=0;k<nItems;k++){
+        let pr;do{pr=products[Math.floor(Math.random()*products.length)];}while(used.has(pr.sku));
+        used.add(pr.sku);
+        items.push({sku:pr.sku,qty:1+Math.floor(Math.random()*3)});
+      }
+      const amount=items.reduce((s,it)=>{const pr=products.find(x=>x.sku===it.sku);return s+pr.price*it.qty;},0);
+      const dt=daysAgo(d);dt.setHours(8+Math.floor(Math.random()*12),Math.floor(Math.random()*60));
+      const st=d===0?['待审核','待审核','待发货','待发货','已发货'][Math.floor(Math.random()*5)]:statuses[Math.floor(Math.random()*statuses.length)];
+      orders.push({
+        id:'O'+String(seq).padStart(4,'0'),
+        orderNo:{'亚马逊':'AMZ','Temu':'TM','TikTok':'TT','Shopee':'SP'}[p]+'-'+dt.toISOString().slice(2,10).replace(/-/g,'')+'-'+String(seq).padStart(3,'0'),
+        platform:p,buyer:b[0],country:b[1],items,amount:+amount.toFixed(2),
+        time:dt.toISOString(),status:st,
+        warehouse:WAREHOUSES[Math.floor(Math.random()*3)],channel:CHANNELS[Math.floor(Math.random()*4)],
+        shipFee:+(3+Math.random()*9).toFixed(2),
+        commission:+(amount*COMM_RATE[p]).toFixed(2),
+        adFee:+(amount*(0.03+Math.random()*0.05)).toFixed(2),
+      });
+      seq++;
+    }
+  }
+  inbound=[
+    {time:daysAgo(3).toISOString(),sku:'S001',qty:100,note:'工厂补货'},
+    {time:daysAgo(2).toISOString(),sku:'S004',qty:200,note:'1688 采购'},
+    {time:daysAgo(1).toISOString(),sku:'S006',qty:50,note:''},
+  ];
+  save('xb_products',products);save('xb_orders',orders);save('xb_inbound',inbound);
+}
+if(!products||!orders){seedData();}
+
+// 默认占位图(SVG 内联,无网络依赖,给 seed 数据用)
+const DEFAULT_IMGS={
+  'S001':svgImg('#165DFF','🎧'),
+  'S002':svgImg('#00B42A','🥤'),
+  'S003':svgImg('#FF7D00','💄'),
+  'S004':svgImg('#722ED1','🐶'),
+  'S005':svgImg('#165DFF','📱'),
+  'S006':svgImg('#F53F3F','🚗'),
+  'S007':svgImg('#86909C','🍳'),
+  'S008':svgImg('#00B42A','💧'),
+};
+function svgImg(bg,emoji){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="${bg}"/><text x="100" y="120" font-size="100" text-anchor="middle">${emoji}</text></svg>`;
+  return 'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+}
+// 给已有产品补默认图(兼容旧数据)
+products.forEach(p=>{if(!p.img&&DEFAULT_IMGS[p.sku])p.img=DEFAULT_IMGS[p.sku];});
+
+// 防抖保存,避免频繁写入
+let _persistTimer;
+function persistAll(){
+  clearTimeout(_persistTimer);
+  _persistTimer=setTimeout(()=>{
+    save('xb_products',products);
+    save('xb_orders',orders);
+    save('xb_inbound',inbound);
+  },100);
+}
+function resetDemo(){
+  if(!confirm('确定清空当前数据并重新生成演示数据?'))return;
+  localStorage.removeItem('xb_products');localStorage.removeItem('xb_orders');localStorage.removeItem('xb_inbound');
+  clearCache('xb_products');clearCache('xb_orders');clearCache('xb_inbound');
+  products=null;orders=null;inbound=[];
+  seedData();renderAll();toast('已重置演示数据');
+}
+const prodOf=sku=>products.find(p=>p.sku===sku)||{name:'(已删除)',cost:0,price:0};
+
+/* ================= 导航 ================= */
+const TITLES={dashboard:'控制台',workbench:'工作台',orders:'订单管理',products:'商品管理',sku:'SKU 管理',inventory:'库存管理',shipping:'发货处理',labels:'面单打印',profit:'利润核算'};
+const ROLE_PAGES={
+  manage:['dashboard','orders','products','sku','inventory','shipping','labels','profit'],
+  staff:['workbench','orders','shipping','labels','inventory']
+};
+let currentRole=localStorage.getItem('xb_role')||'manage';
+function getRole(){return currentRole;}
+function setRole(r){currentRole=r;localStorage.setItem('xb_role',r);document.body.setAttribute('data-role',r);
+  const badge=$('#roleBadge');const swBtn=$('#roleSwitchBtn');
+  if(badge)badge.textContent=r==='manage'?'管理端':'员工端';
+  if(swBtn)swBtn.textContent=r==='manage'?'🔄 切换到员工端':'🔄 切换到管理端';
+}
+function switchRole(){
+  const newRole=currentRole==='manage'?'staff':'manage';
+  setRole(newRole);
+  const pages=ROLE_PAGES[newRole];
+  go(pages[0]);
+}
+function enterApp(role,page){
+  setRole(role);
+  switchView('console');
+  const firstPage=ROLE_PAGES[role][0];
+  go(page&&ROLE_PAGES[role].includes(page)?page:firstPage);
+}
+function go(page,orderTab){
+  // 角色权限检查
+  if(!ROLE_PAGES[currentRole].includes(page)){
+    page=ROLE_PAGES[currentRole][0];
+  }
+  $$('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
+  $$('.page').forEach(p=>p.classList.toggle('show',p.id==='page-'+page));
+  $('#pageTitle').textContent=TITLES[page]||page;
+  if(orderTab!==undefined&&page==='orders'){
+    $$('#orderTabs .tab').forEach(t=>t.classList.toggle('active',t.dataset.st===orderTab));
+  }
+  // 仅渲染当前可见页面,延迟执行避免阻塞切换动画
+  requestAnimationFrame(()=>{
+    if(page==='dashboard') renderDashboard();
+    if(page==='workbench') renderWorkbench();
+    if(page==='orders') renderOrders();
+    if(page==='products') renderProducts();
+    if(page==='sku') renderSku();
+    if(page==='inventory') renderInventory();
+    if(page==='shipping') renderShipping();
+    if(page==='labels') renderLabels();
+    if(page==='profit') renderProfit();
+    if(page==='dashboard') initCharts();
+  });
+}
+$('#nav').addEventListener('click',e=>{const it=e.target.closest('.nav-item');if(it)go(it.dataset.page);});
+
+/* ================= 主题 ================= */
+function applyTheme(t){
+  document.documentElement.dataset.theme=t;
+  $('#themeBtn').textContent=t==='dark'?'☀️ 浅色':'🌙 深色';
+  localStorage.setItem('xb_theme',t);
+  setTimeout(initCharts,50);
+}
+$('#themeBtn').onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+applyTheme(localStorage.getItem('xb_theme')||'light');
+
+/* ================= 控制台 ================= */
+function orderProfit(o){ // 单订单预估毛利
+  const cost=o.items.reduce((s,it)=>s+prodOf(it.sku).cost*it.qty,0);
+  return o.amount-cost-o.shipFee-o.commission-o.adFee;
+}
+function renderDashboard(){
+  const today=todayStr();
+  const todayOrders=orders.filter(o=>o.time.slice(0,10)===today);
+  const shippedToday=todayOrders.filter(o=>o.status==='已发货');
+  const onSale=products.filter(p=>p.status==='在售');
+  const profit=todayOrders.filter(o=>o.status!=='异常/退款').reduce((s,o)=>s+orderProfit(o),0);
+  $('#stOrders').textContent=fmtN(todayOrders.length);
+  $('#stOrdersSub').textContent='总订单 '+orders.length+' 单';
+  $('#stShipped').textContent=fmtN(shippedToday.length);
+  $('#stShippedSub').textContent='待发货 '+orders.filter(o=>o.status==='待发货').length+' 单';
+  $('#stSku').textContent=fmtN(onSale.length);
+  $('#stSkuSub').textContent='共 '+products.length+' 个 SKU';
+  $('#stProfit').textContent=fmt$(profit);
+  $('#stProfitSub').textContent='今日销售额 '+fmt$(todayOrders.reduce((s,o)=>s+o.amount,0));
+  $('#qcAll').textContent=orders.filter(o=>o.status==='待审核').length+' 待审';
+  $('#qcShip').textContent=orders.filter(o=>o.status==='待发货').length;
+  $('#qcWarn').textContent=products.filter(p=>p.stock<=p.warn).length;
+}
+
+/* ================= 员工工作台 ================= */
+function renderWorkbench(){
+  const today=todayStr();
+  const pending=orders.filter(o=>o.status==='待发货');
+  const review=orders.filter(o=>o.status==='待审核');
+  const shippedToday=orders.filter(o=>o.status==='已发货'&&o.time.slice(0,10)===today);
+  const warns=products.filter(p=>p.stock<=p.warn);
+  $('#wbPending').textContent=fmtN(pending.length);
+  $('#wbWarn').textContent=warns.length;
+  $('#wbShipped').textContent=fmtN(shippedToday.length);
+  $('#wbShippedSub').textContent='今日发货 '+fmtN(shippedToday.length)+' 单';
+  $('#wbReview').textContent=fmtN(review.length);
+  $('#wbQcShip').textContent=pending.length;
+  $('#wbQcLabel').textContent=pending.length;
+  $('#wbQcPending').textContent=pending.length;
+  // 任务清单
+  let tasks=[];
+  if(review.length>0)tasks.push(`<span style="color:var(--warning)">⬜ 待审核 ${review.length} 笔订单</span>`);
+  if(pending.length>0)tasks.push(`<span style="color:var(--primary)">⬜ 待发货 ${pending.length} 笔订单(优先处理)</span>`);
+  if(warns.length>0)tasks.push(`<span style="color:var(--danger)">⬜ ${warns.length} 个 SKU 库存预警,需补货</span>`);
+  if(tasks.length===0)tasks.push('<span class="muted">✅ 当前无待处理任务,棒!</span>');
+  $('#wbTaskList').innerHTML=tasks.map(t=>'<div>'+t+'</div>').join('');
+  // 待发货前5条
+  $('#wbShipBody').innerHTML=pending.slice(0,5).map(o=>`<tr>
+    <td class="num">${o.orderNo}</td>
+    <td><span class="badge b-gray">${o.platform}</span></td>
+    <td>${o.buyer}<span class="muted"> / ${o.country}</span></td>
+    <td>${o.items.map(it=>it.sku+'×'+it.qty).join(',')}</td>
+    <td><span class="badge ${ST_BADGE[o.status]}">${o.status}</span></td>
+    <td><button class="btn sm primary" onclick="go('shipping')">去发货</button></td>
+  </tr>`).join('')||'<tr><td colspan="6" class="muted" style="text-align:center;padding:20px">🎉 暂无待发货订单</td></tr>';
+}
+let lineChart,pieChart,_chartInitTimer;
+function initCharts(){
+  if(typeof echarts==='undefined'){
+    // 库未加载,显示占位并稍后重试
+    const lineEl=document.getElementById('chartLine');
+    const pieEl=document.getElementById('chartPie');
+    if(lineEl&&!lineEl._loading)lineEl.innerHTML='<div class="chart-empty">📡 图表加载中...</div>';
+    if(pieEl&&!pieEl._loading)pieEl.innerHTML='<div class="chart-empty">📡 图表加载中...</div>';
+    clearTimeout(_chartInitTimer);
+    _chartInitTimer=setTimeout(initCharts,500);
+    return;
+  }
+  if(!$('#page-dashboard').classList.contains('show'))return;
+  // 销毁旧实例避免内存泄漏
+  if(lineChart){lineChart.dispose();lineChart=null;}
+  if(pieChart){pieChart.dispose();pieChart=null;}
+  const dark=document.documentElement.dataset.theme==='dark';
+  const txt=dark?'#EAEDF1':'#1D2129', mut=dark?'#8A8F99':'#86909C', grid=dark?'#333':'#E5E8EF';
+  // 折线:近7天单量+销售额(使用 requestIdleCallback 或 setTimeout 分批计算)
+  const days=[],cnts=[],sales=[];
+  for(let d=6;d>=0;d--){
+    const key=daysAgo(d).toISOString().slice(0,10);
+    days.push(key.slice(5));
+    const os=orders.filter(o=>o.time.slice(0,10)===key);
+    cnts.push(os.length);sales.push(+os.reduce((s,o)=>s+o.amount,0).toFixed(0));
+  }
+  lineChart=echarts.init($('#chartLine'),null,{renderer:'canvas'});
+  lineChart.setOption({
+    tooltip:{trigger:'axis'},legend:{data:['订单数','销售额($)'],textStyle:{color:mut},top:0},
+    grid:{left:56,right:56,top:44,bottom:24},
+    xAxis:{type:'category',data:days,axisLine:{lineStyle:{color:grid}},axisLabel:{color:mut}},
+    yAxis:[
+      {type:'value',name:'订单数',nameTextStyle:{color:mut},axisLabel:{color:mut},splitLine:{lineStyle:{color:grid}}},
+      {type:'value',name:'销售额($)',nameTextStyle:{color:mut},axisLabel:{color:mut,formatter:'${value}'},splitLine:{show:false}}
+    ],
+    series:[
+      {name:'订单数',type:'line',smooth:true,data:cnts,itemStyle:{color:'#165DFF'},areaStyle:{color:'rgba(22,93,255,.12)'}},
+      {name:'销售额($)',type:'line',smooth:true,yAxisIndex:1,data:sales,itemStyle:{color:'#00B42A'}}
+    ]
+  });
+  // 饼图:平台销售额占比
+  const pieData=PLATFORMS.map(p=>({name:p,value:+orders.filter(o=>o.platform===p).reduce((s,o)=>s+o.amount,0).toFixed(0)}));
+  pieChart=echarts.init($('#chartPie'));
+  pieChart.setOption({
+    tooltip:{trigger:'item',formatter:'{b}: ${c} ({d}%)'},
+    legend:{bottom:0,textStyle:{color:mut}},
+    series:[{type:'pie',radius:['42%','68%'],center:['50%','44%'],
+      label:{color:txt,formatter:'{b}\n{d}%'},
+      data:pieData,itemStyle:{borderRadius:6,borderColor:dark?'#232324':'#fff',borderWidth:2},
+      color:['#165DFF','#FF7D00','#00B42A','#722ED1']}]
+  });
+}
+window.addEventListener('resize',()=>{lineChart&&lineChart.resize();pieChart&&pieChart.resize();});
+
+/* ================= 订单管理 ================= */
+const ST_BADGE={'待审核':'b-orange','待发货':'b-blue','已发货':'b-green','异常/退款':'b-red'};
+$('#orderTabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab');if(!t)return;
+  $$('#orderTabs .tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');renderOrders();
+});
+function currentOrderFilter(){
+  const st=$('#orderTabs .tab.active').dataset.st;
+  const kw=$('#orderSearch').value.trim().toLowerCase();
+  const pf=$('#orderPlatform').value;
+  return orders.filter(o=>{
+    if(st&&o.status!==st)return false;
+    if(pf&&o.platform!==pf)return false;
+    if(kw){
+      const hay=(o.orderNo+' '+o.buyer+' '+o.country+' '+o.platform+' '+o.items.map(i=>i.sku).join(' ')).toLowerCase();
+      if(!hay.includes(kw))return false;
+    }
+    return true;
+  }).sort((a,b)=>b.time.localeCompare(a.time));
+}
+function renderOrders(){
+  const list=currentOrderFilter();
+  $('#orderBody').innerHTML=list.map(o=>{
+    const multi=o.items.length>1;
+    const skuTxt=multi?o.items[0].sku+' 等'+o.items.length+'品 <a href="javascript:void 0" onclick="toggleDetail(\''+o.id+'\')" style="color:var(--primary)">展开▾</a>'
+      :o.items[0].sku+'×'+o.items[0].qty;
+    const ops=[];
+    if(o.status==='待审核')ops.push(`<button class="btn sm" onclick="reviewOrder('${o.id}')">审核</button>`);
+    if(o.status==='待发货')ops.push(`<button class="btn sm" onclick="shipOrder('${o.id}')">发货</button>`);
+    ops.push(`<button class="btn sm" onclick="viewOrder('${o.id}')">查看</button>`);
+    return `<tr>
+      <td><input type="checkbox" class="ock" value="${o.id}"></td>
+      <td class="num">${o.orderNo}</td>
+      <td><span class="badge b-gray">${o.platform}</span></td>
+      <td>${o.buyer}<span class="muted"> / ${o.country}</span></td>
+      <td>${skuTxt}</td>
+      <td class="num">${fmt$(o.amount)}</td>
+      <td class="muted num">${o.time.slice(0,16).replace('T',' ')}</td>
+      <td><span class="badge ${ST_BADGE[o.status]}">${o.status}</span></td>
+      <td>${ops.join(' ')}</td>
+    </tr>
+    <tr class="detail-row" id="dt-${o.id}" style="display:none"><td colspan="9">
+      <b>商品明细:</b>${o.items.map(it=>{const p=prodOf(it.sku);return `${it.sku} ${p.name} × ${it.qty}(单价 ${fmt$(p.price)})`;}).join(' | ')}
+       <span class="muted">仓库:${o.warehouse} 渠道:${o.channel} 运费:${fmt$(o.shipFee)} 佣金:${fmt$(o.commission)} 广告:${fmt$(o.adFee)}</span>
+    </td></tr>`;
+  }).join('')||'<tr><td colspan="9" class="muted" style="text-align:center;padding:30px">没有符合条件的订单</td></tr>';
+  $('#orderCount').textContent='共 '+list.length+' 单,合计金额 '+fmt$(list.reduce((s,o)=>s+o.amount,0));
+  $('#orderCkAll').checked=false;
+}
+function toggleDetail(id){const r=$('#dt-'+id);r.style.display=r.style.display==='none'?'':'none';}
+function toggleAllOrders(ck){$$('.ock').forEach(c=>c.checked=ck.checked);}
+function selectedOrderIds(){return $$('.ock:checked').map(c=>c.value);}
+function reviewOrder(id){const o=orders.find(x=>x.id===id);if(o&&o.status==='待审核'){o.status='待发货';persistAll();renderAll();toast('已审核 → 待发货');}}
+function shipOrder(id){
+  const o=orders.find(x=>x.id===id);if(!o||o.status!=='待发货')return;
+  o.status='已发货';o.shipTime=new Date().toISOString();
+  o.items.forEach(it=>{const p=products.find(x=>x.sku===it.sku);if(p)p.stock=Math.max(0,p.stock-it.qty);});
+  persistAll();renderAll();toast('已发货,库存已扣减');
+}
+function batchOrder(act){
+  const ids=selectedOrderIds();
+  if(!ids.length)return toast('请先勾选订单');
+  let n=0;
+  ids.forEach(id=>{
+    const o=orders.find(x=>x.id===id);if(!o)return;
+    if(act==='review'&&o.status==='待审核'){o.status='待发货';n++;}
+    if(act==='ship'&&o.status==='待发货'){
+      o.status='已发货';o.shipTime=new Date().toISOString();
+      o.items.forEach(it=>{const p=products.find(x=>x.sku===it.sku);if(p)p.stock=Math.max(0,p.stock-it.qty);});n++;
+    }
+  });
+  persistAll();renderAll();
+  toast(act==='review'?`批量审核完成 ${n} 单`:`批量发货完成 ${n} 单(自动扣库存)`);
+}
+function viewOrder(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  const cost=o.items.reduce((s,it)=>s+prodOf(it.sku).cost*it.qty,0);
+  const isManage=currentRole==='manage';
+  $('#orderModalBody').innerHTML=`
+    <h3>订单详情 · ${o.orderNo}</h3>
+    <table style="font-size:13px"><tbody>
+      <tr><td class="muted" style="width:100px">平台 / 状态</td><td>${o.platform} <span class="badge ${ST_BADGE[o.status]}">${o.status}</span></td></tr>
+      <tr><td class="muted">买家</td><td>${o.buyer} / ${o.country}</td></tr>
+      <tr><td class="muted">下单时间</td><td>${o.time.slice(0,19).replace('T',' ')}</td></tr>
+      <tr><td class="muted">商品</td><td>${o.items.map(it=>{const p=prodOf(it.sku);return `${it.sku} ${p.name} × ${it.qty}`;}).join('<br>')}</td></tr>
+      <tr><td class="muted">金额</td><td class="num">${fmt$(o.amount)}</td></tr>
+      <tr><td class="muted">仓库 / 渠道</td><td>${o.warehouse} / ${o.channel}</td></tr>
+      ${isManage?`<tr><td class="muted">成本拆解</td><td class="num">采购 ${fmt$(cost)} + 运费 ${fmt$(o.shipFee)} + 佣金 ${fmt$(o.commission)} + 广告 ${fmt$(o.adFee)}</td></tr>
+      <tr><td class="muted">预估毛利</td><td class="num ${orderProfit(o)>=0?'green':'red'}">${fmt$(orderProfit(o))}</td></tr>`:''}
+    </tbody></table>
+    <div class="foot"><button class="btn" onclick="closeMask('orderMask')">关闭</button>
+    ${o.status==='待发货'?`<button class="btn primary" onclick="closeMask('orderMask');shipOrder('${o.id}')">立即发货</button>`:''}</div>`;
+  $('#orderMask').classList.add('show');
+}
+function exportOrders(){
+  const ids=selectedOrderIds();
+  const list=(ids.length?orders.filter(o=>ids.includes(o.id)):currentOrderFilter());
+  const rows=list.map(o=>({
+    订单号:o.orderNo,平台:o.platform,买家:o.buyer,国家:o.country,
+    SKU:o.items.map(i=>i.sku+'×'+i.qty).join('; '),
+    金额:o.amount,订单时间:o.time.slice(0,19).replace('T',' '),状态:o.status,
+    仓库:o.warehouse,渠道:o.channel,运费:o.shipFee,佣金:o.commission,广告费:o.adFee
+  }));
+  exportRows(rows,'订单导出_'+todayStr());
+}
+
+/* ================= 商品管理 ================= */
+let editingSku=null, _editImgCache=null; // 缓存编辑时原图,未上传则保留
+
+/* 图片上传:FileReader + canvas 压缩到 200×200 JPEG 0.75 */
+function bindUploader(){
+  $('#fFile').onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    if(f.size>2*1024*1024)return toast('图片需 ≤2MB,请压缩后重试');
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      const im=new Image();
+      im.onload=()=>{
+        const c=document.createElement('canvas');c.width=200;c.height=200;
+        const ctx=c.getContext('2d');
+        // 居中裁剪(cover)
+        const r=Math.max(200/im.width,200/im.height);
+        const w=im.width*r,h=im.height*r;
+        ctx.drawImage(im,(200-w)/2,(200-h)/2,w,h);
+        const data=c.toDataURL('image/jpeg',0.75);
+        $('#upPreview').src=data;$('#upPreview').style.display='block';
+        $('#upArea').classList.add('has-img');
+        $('#upHint').style.display='none';
+        _editImgCache=data;
+        e.target.value='';
+      };
+      im.src=ev.target.result;
+    };
+    rd.readAsDataURL(f);
+  };
+}
+function clearImg(e){
+  e.preventDefault();e.stopPropagation();
+  _editImgCache='';
+  $('#upPreview').src='';$('#upPreview').style.display='none';
+  $('#upArea').classList.remove('has-img');
+  $('#upHint').style.display='';
+}
+function setUploader(img){
+  _editImgCache=img||null;
+  if(img){
+    $('#upPreview').src=img;$('#upPreview').style.display='block';
+    $('#upArea').classList.add('has-img');$('#upHint').style.display='none';
+  }else{
+    $('#upPreview').src='';$('#upPreview').style.display='none';
+    $('#upArea').classList.remove('has-img');$('#upHint').style.display='';
+  }
+}
+
+function renderProducts(){
+  const kw=$('#prodSearch').value.trim().toLowerCase();
+  const st=$('#prodStatus').value;
+  const pf=$('#prodPlatform').value;
+  const list=products.filter(p=>{
+    if(st&&p.status!==st)return false;
+    if(pf&&p.platform!==pf)return false;
+    if(kw&&!(p.sku+' '+p.name+' '+p.platform).toLowerCase().includes(kw))return false;
+    return true;
+  });
+  $('#prodBody').innerHTML=list.map(p=>{
+    const margin=p.price>0?((p.price-p.cost)/p.price*100).toFixed(0)+'%':'-';
+    const img=p.img?`<img class="thumb" src="${p.img}" alt="${p.name}" title="点击查看大图" style="cursor:zoom-in" onclick="openZoom('${p.name}','${p.img}')">`:`<div class="thumb placeholder">无图</div>`;
+    return `<tr>
+      <td>${img}</td><td><b>${p.sku}</b></td><td>${p.name}</td>
+      <td class="num">${fmt$(p.cost)}</td><td class="num">${fmt$(p.price)}</td><td class="num">${margin}</td>
+      <td><span class="badge b-gray">${p.platform}</span></td>
+      <td><span class="badge ${p.status==='在售'?'b-green':'b-gray'}">${p.status}</span></td>
+      <td><button class="btn sm" onclick="openProdModal('${p.sku}')">编辑</button>
+          <button class="btn sm danger" onclick="delProduct('${p.sku}')">删除</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="9" class="muted" style="text-align:center;padding:30px">暂无商品</td></tr>';
+  $('#prodCount').textContent='共 '+list.length+' 个商品';
+}
+function toggleAllProds(ck){$$('.pck').forEach(c=>c.checked=ck.checked);}
+function openProdModal(sku){
+  editingSku=sku||null;
+  $('#prodModalTitle').textContent=sku?'编辑 SKU:'+sku:'新增 SKU';
+  const p=sku?products.find(x=>x.sku===sku):{sku:'',name:'',cost:'',price:'',stock:0,warn:10,platform:'亚马逊',status:'在售',img:''};
+  $('#fSku').value=p.sku;$('#fSku').disabled=!!sku;
+  $('#fName').value=p.name;$('#fCost').value=p.cost;$('#fPrice').value=p.price;
+  $('#fStock').value=p.stock;$('#fWarn').value=p.warn;$('#fPlatform').value=p.platform;$('#fStatus').value=p.status;
+  setUploader(p.img||'');
+  $('#prodMask').classList.add('show');
+}
+function saveProduct(){
+  const sku=$('#fSku').value.trim().toUpperCase();
+  const name=$('#fName').value.trim();
+  if(!sku||!name)return toast('SKU 和名称必填');
+  if(!editingSku&&products.some(p=>p.sku===sku))return toast('SKU 已存在,不能重复');
+  const data={sku,name,cost:+$('#fCost').value||0,price:+$('#fPrice').value||0,
+    stock:+$('#fStock').value||0,warn:+$('#fWarn').value||0,
+    platform:$('#fPlatform').value,status:$('#fStatus').value};
+  // 图片:null=未改动保留原图,''=删除,string=新图
+  if(_editImgCache===null){
+    const orig=editingSku?products.find(p=>p.sku===editingSku):{};
+    data.img=orig.img||'';
+  }else{
+    data.img=_editImgCache;
+  }
+  if(editingSku){Object.assign(products.find(p=>p.sku===editingSku),data);}
+  else products.unshift(data);
+  persistAll();closeMask('prodMask');renderAll();toast('已保存');
+}
+function delProduct(sku){
+  if(!confirm('删除 SKU '+sku+'?(不影响历史订单)'))return;
+  products=products.filter(p=>p.sku!==sku);persistAll();renderAll();toast('已删除');
+}
+function batchWarn(){
+  const ids=$$('.pck:checked').map(c=>c.value);
+  if(!ids.length)return toast('请先勾选商品');
+  const v=prompt('为选中的 '+ids.length+' 个 SKU 统一设置库存预警线:','20');
+  if(v===null)return;
+  const n=+v;if(isNaN(n)||n<0)return toast('请输入有效数字');
+  products.forEach(p=>{if(ids.includes(p.sku))p.warn=n;});
+  persistAll();renderAll();toast('预警线已更新');
+}
+function exportProducts(){
+  exportRows(products.map(p=>({SKU:p.sku,商品名称:p.name,图片:p.img?p.img.slice(0,40)+'...(base64)':'(无)',采购价:p.cost,售价:p.price,毛利率:p.price>0?(((p.price-p.cost)/p.price*100).toFixed(1)+'%'):'-',所属平台:p.platform,状态:p.status})),'商品表_'+todayStr());
+}
+
+/* ================= SKU 管理 ================= */
+function renderSku(){
+  const kw=$('#skuSearch').value.trim().toLowerCase();
+  const st=$('#skuStatus').value;
+  const pf=$('#skuPlatform').value;
+  const sf=$('#skuStockFilter').value;
+  const list=products.filter(p=>{
+    if(st&&p.status!==st)return false;
+    if(pf&&p.platform!==pf)return false;
+    if(kw&&!(p.sku+' '+p.name+' '+p.platform).toLowerCase().includes(kw))return false;
+    if(sf==='low'&&p.stock>p.warn)return false;
+    if(sf==='zero'&&p.stock!==0)return false;
+    if(sf==='ok'&&p.stock<=p.warn)return false;
+    return true;
+  });
+  $('#skuBody').innerHTML=list.map(p=>{
+    const low=p.stock<=p.warn;
+    const zero=p.stock===0;
+    return `<tr>
+      <td><input type="checkbox" class="pck" value="${p.sku}"></td>
+      <td><b>${p.sku}</b></td><td>${p.name}</td>
+      <td><span class="badge b-gray">${p.platform}</span></td>
+      <td class="num ${low?'red':''}">${p.stock}${low?' ⚠':''}</td>
+      <td class="num muted">${p.warn}</td>
+      <td><span class="badge ${p.status==='在售'?'b-green':'b-gray'}">${p.status}</span></td>
+      <td class="num">${fmt$(p.cost)}</td><td class="num">${fmt$(p.price)}</td>
+      <td><button class="btn sm" onclick="adjustSkuStock('${p.sku}')">调整库存</button>
+          <button class="btn sm" onclick="openProdModal('${p.sku}')">编辑</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="10" class="muted" style="text-align:center;padding:30px">暂无 SKU</td></tr>';
+  $('#skuCount').textContent='共 '+list.length+' 个 SKU';
+  $('#skuCkAll').checked=false;
+  // 顶部统计
+  $('#skTotal').textContent=products.length;
+  $('#skOnSale').textContent=products.filter(p=>p.status==='在售').length;
+  $('#skWarn').textContent=products.filter(p=>p.stock<=p.warn).length;
+  $('#skPieces').textContent=fmtN(products.reduce((s,p)=>s+p.stock,0));
+}
+function adjustSkuStock(sku){
+  const p=products.find(x=>x.sku===sku);if(!p)return;
+  const v=prompt(`调整 ${p.sku} ${p.name} 库存\n当前库存: ${p.stock}\n\n请输入新库存数量(直接覆盖):`,p.stock);
+  if(v===null)return;
+  const n=+v;if(isNaN(n)||n<0)return toast('请输入有效数字');
+  if(n===p.stock)return;
+  const delta=n-p.stock;
+  inbound.push({time:new Date().toISOString(),sku,qty:delta,note:'手动调整'+(delta>0?'+':'')+delta});
+  p.stock=n;
+  persistAll();renderAll();toast(`${sku} 库存已调整为 ${n}`);
+}
+function batchAdjustStock(){
+  const ids=$$('.pck:checked').map(c=>c.value);
+  if(!ids.length)return toast('请先勾选 SKU');
+  const v=prompt('为选中的 '+ids.length+' 个 SKU 调整库存量(正数=加库存,负数=减库存):','+10');
+  if(v===null)return;
+  const n=+v;if(isNaN(n))return toast('请输入有效数字');
+  if(n===0)return;
+  products.forEach(p=>{if(ids.includes(p.sku)){
+    p.stock=Math.max(0,p.stock+n);
+    inbound.push({time:new Date().toISOString(),sku:p.sku,qty:n,note:'批量调整'+(n>0?'+':'')+n});
+  }});
+  persistAll();renderAll();toast(`已调整 ${ids.length} 个 SKU 库存 ${n>0?'+':''}${n}`);
+}
+function exportSku(){
+  exportRows(products.map(p=>({
+    SKU:p.sku,商品名称:p.name,所属平台:p.platform,
+    当前库存:p.stock,预警线:p.warn,库存估值:+(p.stock*p.cost).toFixed(2),
+    采购价:p.cost,售价:p.price,毛利率:p.price>0?(((p.price-p.cost)/p.price*100).toFixed(1)+'%'):'-',
+    状态:p.status,最后更新:new Date().toISOString().slice(0,10)
+  })),'SKU表_'+todayStr());
+}
+
+/* ================= 库存管理 ================= */
+function renderInventory(){
+  // 顶部统计
+  $('#ivTotal').textContent=products.length;
+  $('#ivPieces').textContent=fmtN(products.reduce((s,p)=>s+p.stock,0));
+  const warns=products.filter(p=>p.stock<=p.warn);
+  $('#ivWarn').textContent=warns.length;
+  $('#ivValue').textContent=fmt$(products.reduce((s,p)=>s+p.stock*p.cost,0));
+  // 预警表
+  $('#warnBody').innerHTML=[...products].sort((a,b)=>(a.stock-a.warn)-(b.stock-b.warn)).map(p=>{
+    const low=p.stock<=p.warn;
+    return `<tr>
+      <td><b>${p.sku}</b></td><td>${p.name}</td>
+      <td class="num ${low?'red':''}">${p.stock}</td><td class="num muted">${p.warn}</td>
+      <td>${low?'<span class="badge b-red">需补货</span>':'<span class="badge b-green">充足</span>'}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="5" class="muted" style="text-align:center;padding:30px">暂无商品</td></tr>';
+  // 入库
+  $('#inSku').innerHTML=products.map(p=>`<option value="${p.sku}">${p.sku} ${p.name}</option>`).join('');
+  $('#inBody').innerHTML=[...inbound].reverse().slice(0,50).map(r=>`<tr>
+    <td class="muted num">${r.time.slice(0,16).replace('T',' ')}</td>
+    <td><b>${r.sku}</b></td><td class="num ${r.qty>0?'green':'red'}">${r.qty>0?'+':''}${r.qty}</td><td class="muted">${r.note||'-'}</td>
+  </tr>`).join('')||'<tr><td colspan="4" class="muted" style="text-align:center;padding:20px">暂无入库记录</td></tr>';
+  // 全部库存明细
+  const kw=$('#ivSearch').value.trim().toLowerCase();
+  const pf=$('#ivPlatform').value;
+  const list=products.filter(p=>{
+    if(pf&&p.platform!==pf)return false;
+    if(kw&&!(p.sku+' '+p.name).toLowerCase().includes(kw))return false;
+    return true;
+  });
+  $('#ivBody').innerHTML=list.map(p=>{
+    const low=p.stock<=p.warn;
+    return `<tr>
+      <td><b>${p.sku}</b></td><td>${p.name}</td>
+      <td><span class="badge b-gray">${p.platform}</span></td>
+      <td class="num ${low?'red':''}">${p.stock}</td>
+      <td class="num muted">${p.warn}</td>
+      <td class="num">${fmt$(p.cost)}</td>
+      <td class="num">${fmt$(p.stock*p.cost)}</td>
+      <td>${low?'<span class="badge b-red">需补货</span>':'<span class="badge b-green">充足</span>'}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="8" class="muted" style="text-align:center;padding:30px">暂无商品</td></tr>';
+}
+function exportInventory(){
+  const kw=$('#ivSearch').value.trim().toLowerCase();
+  const pf=$('#ivPlatform').value;
+  const list=products.filter(p=>{
+    if(pf&&p.platform!==pf)return false;
+    if(kw&&!(p.sku+' '+p.name).toLowerCase().includes(kw))return false;
+    return true;
+  });
+  exportRows(list.map(p=>({
+    SKU:p.sku,商品名称:p.name,所属平台:p.platform,
+    当前库存:p.stock,预警线:p.warn,
+    是否预警:p.stock<=p.warn?'需补货':'充足',
+    采购成本:p.cost,库存估值:+(p.stock*p.cost).toFixed(2)
+  })),'库存表_'+todayStr());
+}
+
+/* ================= 发货处理 ================= */
+function renderShipping(){
+  const pf=$('#shipPlatform').value;
+  const kw=$('#shipSearch').value.trim().toLowerCase();
+  const all=orders.filter(o=>o.status==='待发货');
+  const pend=all.filter(o=>{
+    if(pf&&o.platform!==pf)return false;
+    if(kw){
+      const hay=(o.orderNo+' '+o.buyer+' '+o.country+' '+o.items.map(i=>i.sku).join(' ')).toLowerCase();
+      if(!hay.includes(kw))return false;
+    }
+    return true;
+  }).sort((a,b)=>a.time.localeCompare(b.time));
+  $('#shipBody').innerHTML=pend.map(o=>`<tr>
+    <td><input type="checkbox" class="shck" value="${o.id}"></td>
+    <td class="num">${o.orderNo}</td>
+    <td><span class="badge b-gray">${o.platform}</span></td>
+    <td>${o.buyer}<span class="muted"> / ${o.country}</span></td>
+    <td>${o.items.map(it=>it.sku+'×'+it.qty).join(',')}</td>
+    <td><select onchange="setOrderField('${o.id}','warehouse',this.value)">${WAREHOUSES.map(w=>`<option ${w===o.warehouse?'selected':''}>${w}</option>`).join('')}</select></td>
+    <td><select onchange="setOrderField('${o.id}','channel',this.value)">${CHANNELS.map(c=>`<option ${c===o.channel?'selected':''}>${c}</option>`).join('')}</select></td>
+    <td><button class="btn sm" onclick="printLabel('${o.id}')">🖨 打印面单</button>
+        <button class="btn sm primary" onclick="shipOrder('${o.id}')">标记发货</button></td>
+  </tr>`).join('')||'<tr><td colspan="8" class="muted" style="text-align:center;padding:30px">🎉 没有待发货订单,摸鱼时间到</td></tr>';
+  $('#shipCount').textContent='待发货 '+pend.length+' 单,合计金额 '+fmt$(pend.reduce((s,o)=>s+o.amount,0));
+  $('#shipCkAll').checked=false;
+
+  // 已发货记录
+  const skw=$('#shippedSearch').value.trim().toLowerCase();
+  const shipped=orders.filter(o=>o.status==='已发货').filter(o=>{
+    if(!skw)return true;
+    return (o.orderNo+' '+o.buyer+' '+o.country).toLowerCase().includes(skw);
+  }).sort((a,b)=>(b.shipTime||b.time).localeCompare(a.shipTime||a.time)).slice(0,50);
+  $('#shippedBody').innerHTML=shipped.map(o=>`<tr>
+    <td class="muted num">${(o.shipTime||o.time).slice(0,16).replace('T',' ')}</td>
+    <td class="num"><a href="javascript:void(0)" onclick="viewOrder('${o.id}')" style="color:#165DFF;text-decoration:none;font-weight:500">${o.orderNo}</a></td>
+    <td><span class="badge b-gray">${o.platform}</span></td>
+    <td>${o.buyer}<span class="muted"> / ${o.country}</span></td>
+    <td>${o.warehouse}</td><td>${o.channel}</td>
+    <td><button class="btn sm" onclick="viewOrder('${o.id}')">👁 查看</button>
+        <button class="btn sm" onclick="printLabel('${o.id}')">🖨 重打面单</button></td>
+  </tr>`).join('')||'<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">暂无已发货记录</td></tr>';
+}
+function toggleAllShip(ck){$$('.shck').forEach(c=>c.checked=ck.checked);}
+function batchShip(){
+  const ids=$$('.shck:checked').map(c=>c.value);
+  if(!ids.length)return toast('请先勾选订单');
+  let n=0;
+  ids.forEach(id=>{
+    const o=orders.find(x=>x.id===id);if(!o||o.status!=='待发货')return;
+    o.status='已发货';o.shipTime=new Date().toISOString();
+    o.items.forEach(it=>{const p=products.find(x=>x.sku===it.sku);if(p)p.stock=Math.max(0,p.stock-it.qty);});
+    n++;
+  });
+  persistAll();renderAll();
+  toast('批量发货完成 '+n+' 单(自动扣库存)');
+}
+function batchPrintLabel(){
+  const ids=$$('.shck:checked').map(c=>c.value);
+  if(!ids.length)return toast('请先勾选订单');
+  if(!confirm('将为选中的 '+ids.length+' 单打印面单,是否继续?'))return;
+  const orders2print=ids.map(id=>orders.find(x=>x.id===id)).filter(o=>o&&o.status==='待发货');
+  if(!orders2print.length)return toast('所选订单中无待发货订单');
+  printLabels(orders2print);
+  toast('已生成 '+orders2print.length+' 张面单,正在打印...');
+}
+
+/* ================= 面单打印 ================= */
+function renderLabels(){
+  const pf=$('#labelPlatform').value;
+  const st=$('#labelStatus').value;
+  const kw=$('#labelSearch').value.trim().toLowerCase();
+  const target=st==='shipped'?'已发货':'待发货';
+  const list=orders.filter(o=>o.status===target).filter(o=>{
+    if(pf&&o.platform!==pf)return false;
+    if(kw){
+      const hay=(o.orderNo+' '+o.buyer+' '+o.country+' '+o.items.map(i=>i.sku).join(' ')).toLowerCase();
+      if(!hay.includes(kw))return false;
+    }
+    return true;
+  }).sort((a,b)=>b.time.localeCompare(a.time));
+  $('#labelBody').innerHTML=list.map(o=>`<tr>
+    <td class="num">${o.orderNo}</td>
+    <td><span class="badge b-gray">${o.platform}</span></td>
+    <td>${o.buyer}<span class="muted"> / ${o.country}</span></td>
+    <td>${o.items.map(it=>it.sku+'×'+it.qty).join(',')}</td>
+    <td>${o.warehouse}</td><td>${o.channel}</td>
+    <td class="num">${o.items.reduce((s,i)=>s+i.qty,0)}</td>
+    <td class="num">${fmt$(o.amount)}</td>
+    <td><button class="btn sm primary" onclick="printLabel('${o.id}')">🖨️ 打印</button></td>
+  </tr>`).join('')||`<tr><td colspan="9" class="muted" style="text-align:center;padding:30px">暂无${target}订单</td></tr>`;
+  $('#labelCount').textContent=`共 ${list.length} 单 ${target}订单,合计 ${fmt$(list.reduce((s,o)=>s+o.amount,0))}`;
+}
+function printLabels(ordersList){
+  $('#printArea').innerHTML=ordersList.map(o=>`<div class="label-sheet">
+    <h2>SHIPPING LABEL · ${o.channel}</h2>
+    <div class="row"><span>Order No.</span><span class="big">${o.orderNo}</span></div>
+    <div class="row"><span>Platform</span><span>${o.platform}</span></div>
+    <div class="row"><span>Ship From</span><span>${o.warehouse} (CN)</span></div>
+    <div class="row"><span>Ship To</span><span class="big">${o.buyer} · ${o.country}</span></div>
+    <div class="row"><span>Items</span><span>${o.items.map(it=>it.sku+' ×'+it.qty).join(', ')}</span></div>
+    <div class="row"><span>Weight / Pcs</span><span>${o.items.reduce((s,i)=>s+i.qty,0)} pcs</span></div>
+    <div class="row"><span>Date</span><span>${todayStr()}</span></div>
+    <div class="barcode">*${o.orderNo.replace(/-/g,'')}*</div>
+  </div>`).join('');
+  window.print();
+}
+function printAllLabels(){
+  const st=$('#labelStatus').value;
+  const target=st==='shipped'?'已发货':'待发货';
+  const list=orders.filter(o=>o.status===target);
+  if(!list.length)return toast('没有可打印的'+target+'订单');
+  if(!confirm('将打印全部 '+list.length+' 单 '+target+'订单面单,是否继续?'))return;
+  printLabels(list);
+  toast('已生成 '+list.length+' 张面单,正在打印...');
+}
+function setOrderField(id,field,val){const o=orders.find(x=>x.id===id);if(o){o[field]=val;persistAll();}}
+function addInbound(){
+  const sku=$('#inSku').value,qty=+$('#inQty').value;
+  if(!sku||!qty||qty<1)return toast('请填写入库数量');
+  const p=products.find(x=>x.sku===sku);if(!p)return;
+  p.stock+=qty;
+  inbound.push({time:new Date().toISOString(),sku,qty,note:$('#inNote').value.trim()});
+  $('#inQty').value='';$('#inNote').value='';
+  persistAll();renderAll();toast(sku+' 入库 +'+qty);
+}
+function printLabel(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  printLabels([o]);
+}
+
+/* ================= 利润核算 ================= */
+$('#profitTabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab');if(!t)return;
+  $$('#profitTabs .tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');renderProfit();
+});
+function profitOrders(){
+  const range=$('#profitTabs .tab.active').dataset.range;
+  const pf=$('#profitPlatform').value, sku=$('#profitSku').value;
+  const from=range==='day'?daysAgo(0):range==='week'?daysAgo(6):daysAgo(29);
+  const fromKey=from.toISOString().slice(0,10);
+  return orders.filter(o=>{
+    if(o.status==='异常/退款')return false;
+    if(o.time.slice(0,10)<fromKey)return false;
+    if(pf&&o.platform!==pf)return false;
+    if(sku&&!o.items.some(i=>i.sku===sku))return false;
+    return true;
+  });
+}
+function renderProfit(){
+  // SKU 下拉
+  const sel=$('#profitSku'),cur=sel.value;
+  sel.innerHTML='<option value="">全部 SKU</option>'+products.map(p=>`<option value="${p.sku}" ${p.sku===cur?'selected':''}>${p.sku} ${p.name}</option>`).join('');
+  const list=profitOrders();
+  // 按 SKU 聚合(订单成本按商品金额占比分摊运费/佣金/广告)
+  const agg={};
+  list.forEach(o=>{
+    const orderGoods=o.items.reduce((s,it)=>s+prodOf(it.sku).price*it.qty,0)||1;
+    o.items.forEach(it=>{
+      const p=prodOf(it.sku);
+      const share=(p.price*it.qty)/orderGoods;
+      const a=agg[it.sku]=agg[it.sku]||{sku:it.sku,name:p.name,orders:new Set(),sales:0,cost:0,ship:0,comm:0,ad:0};
+      a.orders.add(o.id);
+      a.sales+=p.price*it.qty;
+      a.cost+=p.cost*it.qty;
+      a.ship+=o.shipFee*share;a.comm+=o.commission*share;a.ad+=o.adFee*share;
+    });
+  });
+  let rows=Object.values(agg).map(a=>{
+    const net=a.sales-a.cost-a.ship-a.comm-a.ad;
+    return {...a,orderCnt:a.orders.size,net,rate:a.sales>0?net/a.sales*100:0};
+  }).sort((a,b)=>b.net-a.net);
+  const skuFilter=$('#profitSku').value;
+  if(skuFilter)rows=rows.filter(r=>r.sku===skuFilter);
+  $('#profitBody').innerHTML=rows.map(r=>`<tr>
+    <td><b>${r.sku}</b></td><td>${r.name}</td>
+    <td class="num">${r.orderCnt}</td>
+    <td class="num">${fmt$(r.sales)}</td>
+    <td class="num">${fmt$(r.cost)}</td>
+    <td class="num">${fmt$(r.ship)}</td>
+    <td class="num">${fmt$(r.comm)}</td>
+    <td class="num">${fmt$(r.ad)}</td>
+    <td class="num ${r.net>=0?'green':'red'}">${fmt$(r.net)}</td>
+    <td class="num ${r.rate>=0?'green':'red'}">${r.rate.toFixed(1)}%</td>
+  </tr>`).join('')||'<tr><td colspan="10" class="muted" style="text-align:center;padding:30px">该时间段内无有效订单</td></tr>';
+  const tSales=rows.reduce((s,r)=>s+r.sales,0);
+  const tCost=rows.reduce((s,r)=>s+r.cost+r.ship+r.comm+r.ad,0);
+  const tNet=tSales-tCost;
+  $('#pfSales').textContent=fmt$(tSales);
+  $('#pfCost').textContent=fmt$(tCost);
+  $('#pfNet').textContent=fmt$(tNet);
+  $('#pfNet').className='val num '+(tNet>=0?'green':'red');
+  $('#pfRate').textContent=(tSales>0?(tNet/tSales*100).toFixed(1):'0')+'%';
+  window._profitRows=rows;
+}
+function exportProfit(){
+  exportRows((window._profitRows||[]).map(r=>({
+    SKU:r.sku,商品名称:r.name,订单数:r.orderCnt,
+    销售额:+r.sales.toFixed(2),采购成本:+r.cost.toFixed(2),运费:+r.ship.toFixed(2),
+    佣金:+r.comm.toFixed(2),广告:+r.ad.toFixed(2),净利润:+r.net.toFixed(2),利润率:r.rate.toFixed(1)+'%'
+  })),'利润核算_'+todayStr());
+}
+
+/* ================= 导出(Excel,断网降级 CSV) ================= */
+function exportRows(rows,filename){
+  if(!rows.length)return toast('没有可导出的数据');
+  if(typeof XLSX!=='undefined'){
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+    XLSX.writeFile(wb,filename+'.xlsx');
+    toast('已导出 '+filename+'.xlsx');
+  }else{
+    const keys=Object.keys(rows[0]);
+    const csv='\ufeff'+keys.join(',')+'\n'+rows.map(r=>keys.map(k=>'"'+String(r[k]).replace(/"/g,'""')+'"').join(',')).join('\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download=filename+'.csv';a.click();
+    toast('Excel 库未加载(离线),已降级导出 CSV');
+  }
+}
+
+/* ================= 通用 ================= */
+function closeMask(id){$('#'+id).classList.remove('show');}
+$$('.mask').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
+function renderAll(){renderDashboard();renderWorkbench();renderOrders();renderProducts();renderSku();renderInventory();renderShipping();renderLabels();renderProfit();}
+$('#todayChip').textContent=new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+bindUploader();
+// 延迟渲染避免阻塞首屏
+requestAnimationFrame(()=>{
+  renderDashboard();
+  renderWorkbench();
+  requestAnimationFrame(()=>{
+    renderOrders();
+    requestAnimationFrame(()=>{
+      renderProducts();
+      requestAnimationFrame(()=>{
+        renderSku();
+        requestAnimationFrame(()=>{
+          renderInventory();
+          requestAnimationFrame(()=>{
+            renderShipping();
+            requestAnimationFrame(()=>{
+              renderLabels();
+              requestAnimationFrame(()=>renderProfit());
+            });
+          });
+        });
+      });
+    });
+  });
+});
+// 图表在窗口加载后初始化,避免阻塞
+window.addEventListener('load',()=>requestAnimationFrame(initCharts));
+
+/* ================= 大图预览(缩放/拖动/键盘) ================= */
+let _zoomScale=1, _zoomX=0, _zoomY=0, _dragging=false, _dragStart=null;
+function applyZoom(){
+  const im=$('#zoomImg');
+  im.style.transform=`translate(${_zoomX}px,${_zoomY}px) scale(${_zoomScale})`;
+  $('#zoomInfo').textContent=Math.round(_zoomScale*100)+'%';
+}
+function openZoom(name,src){
+  const im=$('#zoomImg');im.src=src;im.alt=name;im.title=name;
+  _zoomScale=1;_zoomX=0;_zoomY=0;applyZoom();
+  im.classList.remove('dragging');
+  $('#zoomMask').classList.add('show');
+}
+function closeZoom(){$('#zoomMask').classList.remove('show');$('#zoomImg').src='';}
+function zoomBy(f){_zoomScale=Math.min(8,Math.max(0.2,_zoomScale*f));applyZoom();}
+function resetZoom(){_zoomScale=1;_zoomX=0;_zoomY=0;applyZoom();}
+// 滚轮缩放
+$('#zoomImg').addEventListener('wheel',e=>{
+  e.preventDefault();
+  zoomBy(e.deltaY<0?1.1:0.9);
+},{passive:false});
+// 拖动
+$('#zoomImg').addEventListener('mousedown',e=>{
+  if(_zoomScale<=1)return;
+  _dragging=true;e.target.classList.add('dragging');
+  _dragStart={x:e.clientX-_zoomX,y:e.clientY-_zoomY};
+});
+window.addEventListener('mousemove',e=>{
+  if(!_dragging)return;
+  _zoomX=e.clientX-_dragStart.x;_zoomY=e.clientY-_dragStart.y;applyZoom();
+});
+window.addEventListener('mouseup',()=>{
+  if(!_dragging)return;
+  _dragging=false;$('#zoomImg').classList.remove('dragging');
+});
+// 双击还原
+$('#zoomImg').addEventListener('dblclick',e=>{
+  e.stopPropagation();
+  if(_zoomScale>1.01)resetZoom();
+  else{_zoomScale=2.5;applyZoom();}
+});
+// 键盘
+window.addEventListener('keydown',e=>{
+  if(!$('#zoomMask').classList.contains('show'))return;
+  if(e.key==='Escape')closeZoom();
+  else if(e.key==='+'||e.key==='=')zoomBy(1.2);
+  else if(e.key==='-'||e.key==='_')zoomBy(0.8);
+  else if(e.key==='0')resetZoom();
+});
+
+/* ================= 数据管理：JSON 导入/导出 ================= */
+const SCHEMA_VERSION=2;
+function exportData(){
+  const payload={
+    schema:SCHEMA_VERSION,
+    app:'xb-cross-border-console',
+    exportedAt:new Date().toISOString(),
+    products,orders,inbound,
+    stats:{productCount:products.length,orderCount:orders.length,inboundCount:inbound.length}
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`xb-data_${todayStr()}_${new Date().toTimeString().slice(0,5).replace(':','')}.json`;
+  a.click();URL.revokeObjectURL(a.href);
+  toast('已导出 '+a.download);
+}
+function importData(e){
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    let obj;try{obj=JSON.parse(ev.target.result);}catch(err){return toast('JSON 解析失败:'+err.message);}
+    if(!obj||obj.app!=='xb-cross-border-console')return toast('文件格式不符(非本系统数据)');
+    if(!Array.isArray(obj.products)||!Array.isArray(obj.orders)||!Array.isArray(obj.inbound))return toast('数据结构不完整');
+    const hasData=products.length||orders.length||inbound.length;
+    const mode=hasData?prompt(`检测到本机已有数据:\n• 商品 ${products.length} 个\n• 订单 ${orders.length} 单\n• 入库 ${inbound.length} 条\n\n请选择合并方式(输入数字):\n  1 = 覆盖(清空后用新数据)\n  2 = 追加(按 SKU/订单号去重,保留两边)\n  0 = 取消导入`,'1'):'1';
+    if(mode==='0'||mode===null){e.target.value='';return toast('已取消');}
+    if(mode==='1'){
+      products=obj.products;orders=obj.orders;inbound=obj.inbound;
+      products.forEach(p=>{if(!p.img&&DEFAULT_IMGS[p.sku])p.img=DEFAULT_IMGS[p.sku];});
+    }else if(mode==='2'){
+      obj.products.forEach(p=>{if(!products.find(x=>x.sku===p.sku)){
+        if(!p.img&&DEFAULT_IMGS[p.sku])p.img=DEFAULT_IMGS[p.sku];
+        products.push(p);
+      }});
+      obj.orders.forEach(o=>{if(!orders.find(x=>x.id===o.id))orders.push(o);});
+      obj.inbound.forEach(r=>{if(!inbound.find(x=>x.time===r.time&&x.sku===r.sku))inbound.push(r);});
+    }else{
+      e.target.value='';return toast('已取消');
+    }
+    persistAll();renderAll();
+    toast(`导入完成:商品 ${obj.products.length},订单 ${obj.orders.length},入库 ${obj.inbound.length}`);
+    e.target.value='';
+  };
+  rd.readAsText(f);
+}
+function toggleDataMenu(e){e.stopPropagation();$('#dataMenu').classList.toggle('show');}
+document.addEventListener('click',()=>{
+  const dm=document.getElementById('dataMenu');if(dm)dm.classList.remove('show');
+});
+
+// ===== 视图切换 =====
+function switchView(view){
+  document.body.setAttribute('data-view',view);
+  document.body.setAttribute('data-role',currentRole);
+  localStorage.setItem('xb_view',view);
+}
+
+// 初始化视图 - 默认显示门户首页
+(function(){
+  // 初始化角色
+  setRole(currentRole);
+  const saved=localStorage.getItem('xb_view');
+  if(saved==='console'){
+    document.body.setAttribute('data-view','console');
+    document.body.setAttribute('data-role',currentRole);
+    // 渲染对应角色的首页
+    requestAnimationFrame(()=>{
+      const firstPage=ROLE_PAGES[currentRole][0];
+      go(firstPage);
+    });
+  }else{
+    document.body.setAttribute('data-view','portal');
+    document.body.setAttribute('data-role',currentRole);
+    localStorage.setItem('xb_view','portal');
+  }
+  // 时钟
+  function tickPortal(){
+    const el=document.getElementById('portalTime');
+    if(el){
+      const now=new Date();
+      el.textContent=[now.getHours(),now.getMinutes(),now.getSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
+    }
+  }
+  tickPortal();
+  setInterval(tickPortal,1000);
+})();
+</script>
+</body>
+</html>
