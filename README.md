@@ -13,6 +13,8 @@
 
 ---
 
+**Cross-Border Commerce Console** unifies orders, products, inventory, shipping and profit analytics for cross-border e-commerce teams — one console, global operations.
+
 [English](README.md) | [中文](README.zh.md)
 
 ## Key Scenarios
@@ -39,15 +41,15 @@
 
 ## Screenshots
 
-Real screenshots captured via local server + headless Edge:
+Real screenshots captured after signing in:
 
-### Home page preview
+### Home page
 
-![Home page preview](screenshots/preview.png)
+![Home page](screenshots/preview.png)
 
-### Dashboard flow (extended viewport)
+### Admin console (after sign-in)
 
-![Dashboard flow (extended viewport)](screenshots/flow-dashboard.png)
+![Admin console](screenshots/admin-console.png)
 
 ---
 

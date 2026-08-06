@@ -13,6 +13,8 @@
 
 ---
 
+**跨境电商运营台** 将订单、商品、库存、发货与利润分析统一到单一控制台，让跨境电商团队一个平台管理全球业务。
+
 [English](README.md) | [中文](README.zh.md)
 
 ## 核心使用场景
@@ -39,15 +41,15 @@
 
 ## 截图预览
 
-通过本地服务 + 无头浏览器渲染的真实截图：
+实地登录后台的真实截图：
 
-### 首页预览
+### 首页
 
-![首页预览](screenshots/preview.png)
+![首页](screenshots/preview.png)
 
-### 管理台流程（大视口）
+### 管理端（登录后）
 
-![管理台流程（大视口）](screenshots/flow-dashboard.png)
+![管理端](screenshots/admin-console.png)
 
 ---
 
