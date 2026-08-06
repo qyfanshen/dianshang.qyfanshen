@@ -2,6 +2,8 @@
 
 > Orders · Products · Inventory · Shipping · Profit — in One Console
 
+> 🚀 **[Live Demo](https://dianshang.qyfanshen.com)** · 📚 **[Docs](docs/)** · 📋 **[Quick Start](docs/QUICKSTART.md)** · 🐛 **[Report Bug](https://github.com/qyfanshen/dianshang.qyfanshen/issues)** · ⭐ **[Star](https://github.com/qyfanshen/dianshang.qyfanshen)**
+
 ![preview](screenshots/preview.png)
 <p align="center">
   <a href="https://github.com/qyfanshen/dianshang.qyfanshen"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>

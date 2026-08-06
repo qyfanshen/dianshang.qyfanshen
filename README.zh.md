@@ -2,6 +2,8 @@
 
 > 订单 / 商品 / 库存 / 发货 / 利润，一台搞定
 
+> 🚀 **[在线演示](https://dianshang.qyfanshen.com)** · 📚 **[文档](docs/)** · 📋 **[快速开始](docs/QUICKSTART.md)** · 🐛 **[反馈问题](https://github.com/qyfanshen/dianshang.qyfanshen/issues)** · ⭐ **[Star](https://github.com/qyfanshen/dianshang.qyfanshen)**
+
 ![预览](screenshots/preview.png)
 <p align="center">
   <a href="https://github.com/qyfanshen/dianshang.qyfanshen"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="许可证"></a>
